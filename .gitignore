@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Folder
+instruction/
+data/
+
 # C extensions
 *.so
 
@@ -147,3 +151,5 @@ ms-vscode.powershell-*.vsix
 *.tmp
 *.temp
 *.bak 
+
+
