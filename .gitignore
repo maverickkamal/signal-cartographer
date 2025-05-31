@@ -131,6 +131,7 @@ dmypy.json
 .idea/
 *.swp
 *.swo
+.cursor/
 *~
 
 # OS files
