@@ -12,6 +12,7 @@ from textual.binding import Binding
 from .panes import SpectrumPane, SignalFocusPane, CartographyPane, DecoderPane, LogPane
 from .input_handler import CommandInput, AetherTapInputHandler
 from .colors import AetherTapColors
+from .tutorial import TutorialMenuScreen
 
 class AetherTapLayout(Container):
     """Main layout container for the AetherTap interface"""
@@ -160,15 +161,16 @@ class AetherTapScreen(Screen):
                     self.aethertap_layout.log_pane.add_log_entry(f"💡 Type 'help' for available commands")
     
     def _show_help(self):
-        """Display help information - now launches comprehensive help screen"""
+        """Display help information - now launches comprehensive tutorial system"""
         if self.aethertap_layout and self.aethertap_layout.log_pane:
             self.aethertap_layout.log_pane.add_log_entry("")
-            self.aethertap_layout.log_pane.add_log_entry("🚀 Launching comprehensive help guide...")
-            self.aethertap_layout.log_pane.add_log_entry("📖 Use Enter or Escape to return to AetherTap")
+            self.aethertap_layout.log_pane.add_log_entry("🎓 Launching Tutorial Academy...")
+            self.aethertap_layout.log_pane.add_log_entry("📚 Choose from 4 comprehensive tutorial sections")
+            self.aethertap_layout.log_pane.add_log_entry("⌨️ Use number keys (1-4) or Escape to return")
             self.aethertap_layout.log_pane.add_log_entry("")
         
-        # Launch the detailed help screen
-        self.app.push_screen(HelpScreen())
+        # Launch the comprehensive tutorial system
+        self.app.push_screen(TutorialMenuScreen())
     
     def _clear_logs(self):
         """Clear the log pane"""
@@ -226,7 +228,7 @@ class AetherTapScreen(Screen):
                 self.aethertap_layout.decoder_pane.update_content(["No active analysis tool"])
 
 class HelpScreen(Screen):
-    """Comprehensive help screen with detailed gameplay instructions"""
+    """Legacy help screen - replaced by comprehensive tutorial system"""
     
     BINDINGS = [
         Binding("enter", "back_to_game", "Return to Game"),
@@ -235,151 +237,38 @@ class HelpScreen(Screen):
     ]
     
     def compose(self) -> ComposeResult:
-        """Compose the help screen"""
+        """Compose the help screen - redirects to tutorial system"""
         yield Header(show_clock=False)
         with ScrollableContainer():
-            yield Static(self._get_help_content(), id="help_content")
+            yield Static(self._get_redirect_content(), id="help_content")
         yield Footer()
     
-    def _get_help_content(self) -> str:
-        """Get comprehensive help content"""
-        return """[bold cyan]🚀 THE SIGNAL CARTOGRAPHER - COMPLETE PLAYER GUIDE 🚀[/bold cyan]
+    def _get_redirect_content(self) -> str:
+        """Show redirect message to new tutorial system"""
+        return """[bold cyan]🎓 TUTORIAL SYSTEM UPGRADE 🎓[/bold cyan]
 
 [bold yellow]═══════════════════════════════════════════════════════════════════════════════[/bold yellow]
 
-[bold green]🎯 GAME OBJECTIVE[/bold green]
-You are a Signal Cartographer exploring the void of space, detecting and analyzing mysterious signals from unknown sources. Your mission is to scan different sectors, focus on interesting signals, and analyze them to uncover their secrets.
+[bold green]Welcome to the Enhanced Tutorial Academy![/bold green]
 
-[bold green]🖥️ INTERFACE OVERVIEW[/bold green]
-The AetherTap interface has 6 main panels:
+The help system has been upgraded to a comprehensive tutorial academy with:
 
-[bold white]📊 Main Spectrum Analyzer (Top Left)[/bold white]
-- Shows detected signals as frequency spikes
-- Updates when you run SCAN commands
-- Different sectors have different signal patterns
+[bold cyan]📚 Four Complete Tutorial Sections:[/bold cyan]
+• 🎮 Gameplay Mechanics Tutorial
+• ⌨️ Button Functions & Controls Guide  
+• 🔧 Game Systems Overview
+• 🔬 Signal Analysis Walkthrough
 
-[bold white]🔍 Signal Focus & Data (Top Right)[/bold white]  
-- Shows detailed information about a focused signal
-- Updates when you use FOCUS commands
-- Displays signal strength, frequency, and characteristics
-
-[bold white]🗺️ Cartography & Navigation (Middle Left)[/bold white]
-- Shows your current sector and zoom level
-- Visual map of signal locations
-- Updates based on your scanning activity
-
-[bold white]🛠️ Decoder & Analysis Toolkit (Middle Right)[/bold white]
-- Shows results of signal analysis
-- Updates when you run ANALYZE commands
-- Reveals hidden information about signals
-
-[bold white]📜 Captain's Log & Database (Bottom Left)[/bold white]
-- Shows command history and system messages
-- Real-time feedback for all your actions
-- System status and notifications
-
-[bold white]💻 Command Input (Bottom Right - PURPLE BOX)[/bold white]
-- Where you type all commands
-- Has a bright purple/violet border
-- Shows feedback when commands execute
-
-[bold green]⌨️ ESSENTIAL COMMANDS[/bold green]
-
-[bold cyan]📡 SCANNING COMMANDS:[/bold cyan]
-[white]SCAN[/white] - Scan current sector (Alpha-1 by default)
-[white]SCAN ALPHA-1[/white] - Scan Alpha-1 sector (3 signals - good for beginners)
-[white]SCAN BETA-2[/white] - Scan Beta-2 sector (2 stronger signals)
-[white]SCAN GAMMA-3[/white] - Scan Gamma-3 sector (1 powerful signal)
-
-[bold cyan]🔍 SIGNAL ANALYSIS:[/bold cyan]
-[white]FOCUS SIG_1[/white] - Focus on the first detected signal
-[white]FOCUS SIG_2[/white] - Focus on the second detected signal
-[white]FOCUS SIG_3[/white] - Focus on the third detected signal (if available)
-[white]ANALYZE[/white] - Analyze the currently focused signal (reveals secrets!)
-
-[bold cyan]📋 SYSTEM COMMANDS:[/bold cyan]
-[white]STATUS[/white] - Show current system status and focused signal
-[white]HELP[/white] - Show this comprehensive help (same as Ctrl+H)
-[white]CLEAR[/white] - Clear the command log for a fresh start
-[white]QUIT[/white] - Exit the game safely
-
-[bold green]🎮 HOTKEYS & NAVIGATION[/bold green]
-
-[bold cyan]Function Keys (Work Anywhere):[/bold cyan]
-[white]F1[/white] - Focus on Main Spectrum Analyzer panel
-[white]F2[/white] - Focus on Signal Focus & Data panel
-[white]F3[/white] - Focus on Cartography & Navigation panel
-[white]F4[/white] - Focus on Decoder & Analysis Toolkit panel
-[white]F5[/white] - Focus on Captain's Log & Database panel
-
-[bold cyan]Control Keys:[/bold cyan]
-[white]Ctrl+H[/white] - Open this detailed help screen
-[white]Ctrl+C[/white] - Quit the game safely
-[white]Enter[/white] - (In help screen) Return to main game
-[white]Escape[/white] - (In help screen) Return to main game
-
-[bold green]🎯 HOW TO PLAY - STEP BY STEP[/bold green]
-
-[bold cyan]Step 1: Start Scanning[/bold cyan]
-Type: [white]SCAN[/white]
-- This detects signals in the current sector
-- Watch the Spectrum Analyzer panel update with signal spikes
-- You'll see signals labeled as SIG_1, SIG_2, etc.
-
-[bold cyan]Step 2: Focus on a Signal[/bold cyan]
-Type: [white]FOCUS SIG_1[/white]
-- This locks onto the first detected signal
-- The Signal Focus panel shows detailed information
-- You'll see frequency, strength, and characteristics
-
-[bold cyan]Step 3: Analyze the Signal[/bold cyan]
-Type: [white]ANALYZE[/white]
-- This reveals hidden information about the focused signal
-- Results appear in the Decoder & Analysis panel
-- You might discover signal origins, purposes, or messages
-
-[bold cyan]Step 4: Explore Different Sectors[/bold cyan]
-Try: [white]SCAN BETA-2[/white] or [white]SCAN GAMMA-3[/white]
-- Each sector has different signals
-- Beta-2: Stronger, more complex signals
-- Gamma-3: Single powerful signal with deep secrets
-
-[bold cyan]Step 5: Use Hotkeys for Quick Navigation[/bold cyan]
-- Press F1-F5 to quickly switch between panels
-- Use this to monitor different aspects of your analysis
-
-[bold green]💡 PRO TIPS[/bold green]
-
-🔹 [white]Start with ALPHA-1[/white] - It has 3 signals, perfect for learning
-🔹 [white]Always SCAN before FOCUS[/white] - You need signals to focus on
-🔹 [white]Use STATUS[/white] to check what signal you're currently focused on
-🔹 [white]Try different sectors[/white] - Each has unique signal characteristics
-🔹 [white]Watch all panels[/white] - They update in real-time as you work
-🔹 [white]Use CLEAR[/white] if your log gets too cluttered
-🔹 [white]Press F5[/white] to see your command history anytime
-
-[bold green]🚨 TROUBLESHOOTING[/bold green]
-
-[bold red]Can't see signals?[/bold red] → Run SCAN first
-[bold red]FOCUS not working?[/bold red] → Make sure you scanned and signals exist
-[bold red]ANALYZE gives no results?[/bold red] → Focus on a signal first
-[bold red]Can't type commands?[/bold red] → Click in the purple command box
-[bold red]Panels not updating?[/bold red] → Commands are case-sensitive, try uppercase
-
-[bold green]🌟 ADVANCED GAMEPLAY[/bold green]
-
-Once you master the basics, try:
-- Scanning all three sectors and comparing signal types
-- Analyzing multiple signals in the same sector
-- Using function keys to monitor multiple panels simultaneously
-- Looking for patterns in signal characteristics across sectors
-- Discovering hidden messages in analyzed signals
+[bold green]🚀 Access the Tutorial Academy:[/bold green]
+• Press [bold yellow]Ctrl+H[/bold yellow] from the main game
+• Use the HELP command in the command input
+• Navigate between sections with number keys (1-4)
 
 [bold yellow]═══════════════════════════════════════════════════════════════════════════════[/bold yellow]
 
-[bold green]Ready to explore the void? Press ENTER to return to AetherTap![/bold green]
+[bold green]Press Enter or Escape to return to AetherTap and try Ctrl+H![/bold green]
 
-[dim]Press Enter or Escape to return to the main game interface[/dim]"""
+[dim]The comprehensive tutorial system provides much more detailed guidance[/dim]"""
 
     def action_back_to_game(self):
         """Return to the main game screen"""
@@ -582,5 +471,5 @@ class AetherTapApp(App):
         self.exit()
     
     def action_help(self):
-        """Show comprehensive help screen (Ctrl+H)"""
-        self.push_screen(HelpScreen())
+        """Open comprehensive tutorial system"""
+        self.app.push_screen(TutorialMenuScreen())
