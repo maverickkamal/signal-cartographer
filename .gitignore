@@ -132,6 +132,8 @@ dmypy.json
 *.swp
 *.swo
 .cursor/
+TASK.md
+PHASE_9_SUMMARY.md
 *~
 
 # OS files
