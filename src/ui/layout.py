@@ -313,12 +313,12 @@ class AetherTapScreen(Screen):
         if self.aethertap_layout:
             # Show startup sequence in log
             if self.aethertap_layout.log_pane:
-                startup_messages = [
-                    "=" * 60,
-                    "  THE SIGNAL CARTOGRAPHER: ECHOES FROM THE VOID",
+                    startup_messages = [
+                        "=" * 60,
+                        "  THE SIGNAL CARTOGRAPHER: ECHOES FROM THE VOID",
                     "  AetherTap Terminal Interface v1.2 - ENHANCED",
-                    "=" * 60,
-                    "",
+                        "=" * 60,
+                        "",
                     "🔧 System Status:",
                     "✅ Quantum resonance chambers initialized",
                     "✅ Signal detection arrays calibrated",
@@ -337,10 +337,10 @@ class AetherTapScreen(Screen):
                     "",
                     "💡 Watch how all 6 panels update as you type commands!",
                     "=" * 60
-                ]
-                
-                for message in startup_messages:
-                    self.aethertap_layout.log_pane.add_log_entry(message)
+                    ]
+                    
+                    for message in startup_messages:
+                        self.aethertap_layout.log_pane.add_log_entry(message)
                 
             # Initialize spectrum pane
             if self.aethertap_layout.spectrum_pane:
@@ -613,9 +613,51 @@ class AetherTapApp(App):
         min-height: 5;
     }
     
+    /* All panes now have scrolling capability */
     BasePane {
         border: solid #58a6ff;
         margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    /* Individual pane styling with scrolling */
+    SpectrumPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    SignalFocusPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    CartographyPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    DecoderPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
     }
     
     #top_row, #middle_row {
@@ -631,6 +673,10 @@ class AetherTapApp(App):
     #spectrum_pane, #signal_focus_pane, #cartography_pane, #decoder_pane {
         width: 50%;
         min-width: 30;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
     }
     
     #log_pane {
@@ -644,7 +690,8 @@ class AetherTapApp(App):
         margin: 0;
     }
     
-    #log_content {
+    /* Content widgets within scrollable panes */
+    #spectrum_pane_content, #signal_focus_pane_content, #cartography_pane_content, #decoder_pane_content, #log_content {
         background: #0d1117;
         color: #c9d1d9;
         padding: 1;
