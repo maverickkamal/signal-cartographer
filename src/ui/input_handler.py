@@ -52,7 +52,7 @@ class AetherTapInputHandler:
     def __init__(self, app):
         self.app = app
         self.commands = {}
-    
+        
     def register_command_callback(self, command: str, callback: Callable):
         """Register a command callback"""
         self.commands[command] = callback
@@ -91,4 +91,4 @@ Available Commands:
     async def _add_log_entry(self, message: str):
         """Add a log entry"""
         # This would be implemented to add to the log pane
-        print(f"LOG: {message}")
+        print(f"LOG: {message}") 
