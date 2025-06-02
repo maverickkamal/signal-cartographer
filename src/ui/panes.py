@@ -962,107 +962,1120 @@ class CartographyPane(BasePane):
         return tracking_lines
 
 class DecoderPane(BasePane):
-    """Decoder & Analysis Toolkit pane [DAT]"""
+    """Enhanced Decoder & Analysis Toolkit pane [DAT] - Phase 10.4"""
     
     def __init__(self, **kwargs):
         super().__init__("Decoder & Analysis Toolkit [DAT]", **kwargs)
         self.current_tool = None
         self.analysis_data = None
-    
-    def start_analysis(self, tool_name: str, signal: Any):
-        """Start analysis with a specific tool"""
-        self.current_tool = tool_name
-        self.analysis_data = signal
-        self._display_analysis_interface()
-    
-    def _display_analysis_interface(self):
-        """Display the analysis interface"""
-        lines = []
+        self.analysis_progress = 0
+        self.analysis_stage = 0
+        self.max_stages = 4
+        self.tool_results = {}
+        self.workspace_data = ""
+        self.analysis_history = []
+        self.validation_status = "pending"
         
-        if self.current_tool:
-            lines.append(f"Active Tool: {self.current_tool}")
-            lines.append("=" * 40)
-            
-            if self.current_tool == "pattern_matching":
-                lines.extend(self._pattern_matching_display())
-            elif self.current_tool == "cipher_analysis":
-                lines.extend(self._cipher_analysis_display())
-            else:
-                lines.append(f"Tool '{self.current_tool}' interface loading...")
-                lines.append("")
-                lines.append("Available commands:")
-                lines.append("  ANALYZE - Start analysis")
-                lines.append("  RESET - Reset tool")
+        # Define the 6 specialized analysis tools
+        self.analysis_tools = {
+            'pattern_recognition': {
+                'name': 'Pattern Recognition Engine',
+                'description': 'Identify recurring patterns and sequences',
+                'complexity': 3,
+                'stages': ['scan', 'isolate', 'classify', 'validate'],
+                'icon': '🔍'
+            },
+            'cryptographic': {
+                'name': 'Cryptographic Analysis Suite',
+                'description': 'Decrypt encoded signals and messages',
+                'complexity': 4,
+                'stages': ['frequency', 'cipher_detect', 'decode', 'verify'],
+                'icon': '🔐'
+            },
+            'spectral': {
+                'name': 'Spectral Decomposition Tool',
+                'description': 'Analyze frequency components and harmonics',
+                'complexity': 5,
+                'stages': ['fourier', 'harmonic', 'reconstruct', 'synthesize'],
+                'icon': '📊'
+            },
+            'ascii_manipulation': {
+                'name': 'ASCII Data Processor',
+                'description': 'Manipulate and transform ASCII patterns',
+                'complexity': 2,
+                'stages': ['parse', 'transform', 'arrange', 'output'],
+                'icon': '📝'
+            },
+            'constellation_mapping': {
+                'name': 'Constellation Mapper',
+                'description': 'Map signal patterns to star configurations',
+                'complexity': 4,
+                'stages': ['coordinate', 'correlate', 'overlay', 'navigate'],
+                'icon': '⭐'
+            },
+            'temporal_sequencing': {
+                'name': 'Temporal Sequence Analyzer',
+                'description': 'Analyze time-based signal variations',
+                'complexity': 3,
+                'stages': ['timeline', 'sequence', 'predict', 'extrapolate'],
+                'icon': '⏱️'
+            }
+        }
+        
+        # Initialize workspace
+        self._display_tool_selection()
+    
+    def select_tool(self, tool_name: str):
+        """Select and initialize analysis tool"""
+        if tool_name in self.analysis_tools:
+            self.current_tool = tool_name
+            self.analysis_progress = 0
+            self.analysis_stage = 0
+            self.tool_results = {}
+            self.validation_status = "pending"
+            self._display_tool_interface()
         else:
-            lines.append("No active analysis tool")
+            self._display_tool_selection()
+    
+    def start_analysis(self, signal: Any):
+        """Start analysis with currently selected tool"""
+        if not self.current_tool:
+            self._display_tool_selection()
+            return
+        
+        self.analysis_data = signal
+        self.analysis_stage = 1
+        self.analysis_progress = 0
+        self._run_analysis_stage()
+    
+    def advance_analysis(self):
+        """Advance to next analysis stage"""
+        if self.analysis_stage < self.max_stages:
+            self.analysis_stage += 1
+            self._run_analysis_stage()
+        else:
+            # Already at max stages, complete the analysis
+            self._complete_analysis()
+    
+    def _run_analysis_stage(self):
+        """Execute current analysis stage"""
+        if not self.current_tool or not self.analysis_data:
+            return
+        
+        tool_data = self.analysis_tools[self.current_tool]
+        stages = tool_data['stages']
+        
+        if self.analysis_stage <= len(stages):
+            stage_index = self.analysis_stage - 1
+            current_stage = stages[stage_index]
+            
+            # Set progress to completed for this stage
+            self.analysis_progress = 1.0
+            self.workspace_data = f"Completed {current_stage} analysis"
+            
+            # Store stage result
+            self.tool_results[current_stage] = f"Stage {self.analysis_stage}: {current_stage.title()} completed successfully"
+            
+            # Update display to show progress
+            self._display_tool_interface()
+            
+            # If this was the last stage, mark as ready for completion
+            if self.analysis_stage >= self.max_stages:
+                self.workspace_data = "All stages completed - ready for finalization"
+                self.validation_status = "ready_to_complete"
+    
+    def _complete_analysis(self):
+        """Complete the analysis workflow"""
+        self.validation_status = "completed"
+        self.workspace_data = "✅ Analysis complete - results validated and logged"
+        self.analysis_progress = 1.0
+        
+        # Add to history
+        analysis_entry = {
+            'tool': self.current_tool,
+            'signal_id': getattr(self.analysis_data, 'id', 'Unknown'),
+            'timestamp': time.time(),
+            'results': self.tool_results.copy(),
+            'completion_status': 'success'
+        }
+        self.analysis_history.append(analysis_entry)
+        
+        # Update the display to show completion
+        self._display_tool_interface()
+    
+    def _display_tool_selection(self):
+        """Display tool selection interface"""
+        lines = []
+        lines.append("[bold cyan]🛠️ DECODER & ANALYSIS TOOLKIT[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        lines.append("[yellow]Select Analysis Tool:[/yellow]")
+        lines.append("")
+        
+        for i, (tool_id, tool_data) in enumerate(self.analysis_tools.items(), 1):
+            icon = tool_data['icon']
+            name = tool_data['name']
+            desc = tool_data['description']
+            complexity = tool_data['complexity']
+            complexity_bar = "●" * complexity + "○" * (5 - complexity)
+            
+            lines.append(f"[white]{i}.[/white] {icon} [yellow]{name}[/yellow]")
+            lines.append(f"   {desc}")
+            lines.append(f"   Complexity: {complexity_bar} ({complexity}/5)")
             lines.append("")
-            lines.append("Available tools:")
-            lines.append("  pattern_matching")
-            lines.append("  cipher_analysis")
-            lines.append("  frequency_analysis")
+        
+        lines.append("[cyan]═══ TOOL SELECTION ═══[/cyan]")
+        lines.append("[green]Commands:[/green]")
+        lines.append("• [yellow]ANALYZE pattern_recognition[/yellow] - Use Pattern Recognition")
+        lines.append("• [yellow]ANALYZE cryptographic[/yellow] - Use Cryptographic Suite")
+        lines.append("• [yellow]ANALYZE spectral[/yellow] - Use Spectral Analysis")
+        lines.append("• [yellow]ANALYZE ascii_manipulation[/yellow] - Use ASCII Processor")
+        lines.append("• [yellow]ANALYZE constellation_mapping[/yellow] - Use Constellation Mapper")
+        lines.append("• [yellow]ANALYZE temporal_sequencing[/yellow] - Use Temporal Analyzer")
+        lines.append("")
+        lines.append("[dim]Select a tool to begin multi-stage analysis workflow[/dim]")
         
         self.update_content(lines)
     
-    def _pattern_matching_display(self) -> List[str]:
-        """Display pattern matching interface"""
+    def _display_tool_interface(self):
+        """Display interface for currently selected tool"""
+        if not self.current_tool:
+            self._display_tool_selection()
+            return
+        
         lines = []
-        lines.append("Pattern Matching Analysis")
+        tool_data = self.analysis_tools[self.current_tool]
+        
+        lines.append(f"[bold cyan]{tool_data['icon']} {tool_data['name'].upper()}[/bold cyan]")
+        lines.append("═" * 60)
         lines.append("")
-        lines.append("Signal pattern:")
-        lines.append("▓▒░█▓▒░█▓▒░")
+        lines.append(f"[yellow]Description:[/yellow] {tool_data['description']}")
+        lines.append(f"[yellow]Complexity Level:[/yellow] {tool_data['complexity']}/5")
         lines.append("")
-        lines.append("Known patterns:")
-        lines.append("A: ▓▒░█")
-        lines.append("B: █▓▒░")
-        lines.append("C: ░▒▓█")
+        
+        # Analysis stages visualization
+        lines.append("[cyan]═══ ANALYSIS WORKFLOW ═══[/cyan]")
+        stages = tool_data['stages']
+        for i, stage in enumerate(stages, 1):
+            if i < self.analysis_stage:
+                status = "[green]✓[/green]"
+            elif i == self.analysis_stage:
+                status = "[yellow]►[/yellow]"
+            else:
+                status = "[dim]○[/dim]"
+            
+            lines.append(f"{status} Stage {i}: {stage.title()}")
+        
+        # Progress indicator
+        if self.analysis_stage > 0:
+            lines.append("")
+            lines.append(f"[cyan]Current Stage Progress:[/cyan]")
+            progress_bar = self._create_analysis_progress_bar(self.analysis_progress, 40)
+            lines.append(progress_bar)
+        
+        # Tool-specific interface
         lines.append("")
-        lines.append("Match found: Pattern A-B-A")
+        lines.append("[cyan]═══ TOOL INTERFACE ═══[/cyan]")
+        lines.extend(self._get_tool_specific_interface())
+        
+        # Workspace area
+        lines.append("")
+        lines.append("[cyan]═══ WORKSPACE ═══[/cyan]")
+        lines.extend(self._display_workspace())
+        
+        # Commands
+        lines.append("")
+        lines.append("[green]Available Commands:[/green]")
+        if self.analysis_data and self.analysis_stage == 0:
+            lines.append("• [yellow]ADVANCE[/yellow] - Start analysis")
+        elif self.analysis_stage > 0 and self.analysis_stage < self.max_stages:
+            lines.append("• [yellow]ADVANCE[/yellow] - Next stage")
+        elif self.analysis_stage >= self.max_stages and self.validation_status != "completed":
+            lines.append("• [yellow]ADVANCE[/yellow] - Complete analysis")
+        elif self.validation_status == "completed":
+            lines.append("• [green]✅ Analysis Complete![/green]")
+            lines.append("• [yellow]RESET[/yellow] - Start new analysis")
+        
+        lines.append("• [yellow]RESET[/yellow] - Reset tool")
+        lines.append("• [yellow]TOOLS[/yellow] - Return to tool selection")
+        
+        self.update_content(lines)
+    
+    def _get_tool_specific_interface(self) -> List[str]:
+        """Get tool-specific interface elements"""
+        if not self.current_tool:
+            return ["No tool selected"]
+        
+        tool_interfaces = {
+            'pattern_recognition': self._pattern_recognition_interface,
+            'cryptographic': self._cryptographic_interface,
+            'spectral': self._spectral_interface,
+            'ascii_manipulation': self._ascii_manipulation_interface,
+            'constellation_mapping': self._constellation_mapping_interface,
+            'temporal_sequencing': self._temporal_sequencing_interface
+        }
+        
+        interface_func = tool_interfaces.get(self.current_tool)
+        if interface_func:
+            return interface_func()
+        else:
+            return ["Interface loading..."]
+    
+    def _pattern_recognition_interface(self) -> List[str]:
+        """Pattern Recognition tool interface"""
+        lines = []
+        lines.append("[yellow]🔍 Pattern Recognition Engine[/yellow]")
+        lines.append("")
+        
+        if self.analysis_data:
+            lines.append("Signal Pattern Analysis:")
+            lines.append("┌────────────────────────────────┐")
+            lines.append("│ ▓▒░█▓▒░█▓▒░█▓▒░█▓▒░█▓▒░█▓▒░ │")
+            lines.append("│ ░▒▓█░▒▓█░▒▓█░▒▓█░▒▓█░▒▓█░▒▓ │")
+            lines.append("│ ▒▓█░▒▓█░▒▓█░▒▓█░▒▓█░▒▓█░▒▓█ │")
+            lines.append("└────────────────────────────────┘")
+            lines.append("")
+            
+            if self.analysis_stage >= 2:
+                lines.append("Detected Patterns:")
+                lines.append("• Pattern A: ▓▒░█ (repeats 8 times)")
+                lines.append("• Pattern B: █░▒▓ (alternating sequence)")
+                lines.append("• Frequency: 125.5 Hz base pattern")
+        else:
+            lines.append("No signal data loaded")
+            lines.append("Use FOCUS command to select signal for analysis")
+        
         return lines
     
-    def _cipher_analysis_display(self) -> List[str]:
-        """Display cipher analysis interface"""
+    def _cryptographic_interface(self) -> List[str]:
+        """Cryptographic Analysis tool interface"""
         lines = []
-        lines.append("Cipher Analysis")
+        lines.append("[yellow]🔐 Cryptographic Analysis Suite[/yellow]")
         lines.append("")
-        lines.append("Encrypted text:")
-        lines.append("KHOOR ZRUOG")
-        lines.append("")
-        lines.append("Frequency analysis:")
-        lines.append("O: 3, R: 2, K: 1, H: 1...")
-        lines.append("")
-        lines.append("Suggested: Caesar cipher, shift=3")
-        lines.append("Decrypted: HELLO WORLD")
+        
+        if self.analysis_data:
+            lines.append("Encrypted Signal Data:")
+            lines.append("┌─────────────────────────────────────┐")
+            lines.append("│ KHOOR ZRUOG VLJ DOSKD EHWD JDPPD   │")
+            lines.append("│ 01101000 01100101 01101100 01101100 │")
+            lines.append("│ █▓▒░ ░▒▓█ ▓█░▒ ▒░█▓ ░█▓▒ ▓▒░█    │")
+            lines.append("└─────────────────────────────────────┘")
+            lines.append("")
+            
+            if self.analysis_stage >= 2:
+                lines.append("Cipher Analysis:")
+                lines.append("• Type: Caesar Cipher (shift=3)")
+                lines.append("• Confidence: 94.7%")
+                lines.append("• Key Pattern: ALPHA BETA GAMMA")
+                
+            if self.analysis_stage >= 3:
+                lines.append("")
+                lines.append("Decrypted Message:")
+                lines.append("[green]'HELLO WORLD SIG ALPHA BETA GAMMA'[/green]")
+        else:
+            lines.append("No encrypted data to analyze")
+            lines.append("Waiting for signal input...")
+        
         return lines
+    
+    def _spectral_interface(self) -> List[str]:
+        """Spectral Decomposition tool interface"""
+        lines = []
+        lines.append("[yellow]📊 Spectral Decomposition Tool[/yellow]")
+        lines.append("")
+        
+        if self.analysis_data:
+            lines.append("Frequency Domain Analysis:")
+            lines.append("┌─Frequency─┬─Amplitude─┬─Phase─┐")
+            lines.append("│   125 Hz  │   0.850   │ 45°   │")
+            lines.append("│   250 Hz  │   0.420   │ 90°   │")
+            lines.append("│   375 Hz  │   0.180   │ 135°  │")
+            lines.append("│   500 Hz  │   0.095   │ 180°  │")
+            lines.append("└───────────┴───────────┴───────┘")
+            lines.append("")
+            
+            if self.analysis_stage >= 2:
+                lines.append("Harmonic Structure:")
+                lines.append("Primary: 125 Hz (fundamental)")
+                lines.append("2nd: 250 Hz (octave)")
+                lines.append("3rd: 375 Hz (perfect fifth)")
+                lines.append("4th: 500 Hz (perfect fourth)")
+        else:
+            lines.append("No spectral data available")
+            lines.append("Signal required for frequency analysis")
+        
+        return lines
+    
+    def _ascii_manipulation_interface(self) -> List[str]:
+        """ASCII Manipulation tool interface"""
+        lines = []
+        lines.append("[yellow]📝 ASCII Data Processor[/yellow]")
+        lines.append("")
+        
+        lines.append("ASCII Workspace:")
+        lines.append("┌─Input────────────────────────────┐")
+        lines.append("│ Signal data converted to ASCII:  │")
+        lines.append("│ 83 73 71 78 65 76 80 72 65       │")
+        lines.append("│ S  I  G  N  A  L  P  H  A         │")
+        lines.append("└───────────────────────────────────┘")
+        lines.append("")
+        
+        if self.analysis_stage >= 2:
+            lines.append("┌─Transformed─────────────────────┐")
+            lines.append("│ ROT13: FVTANY CUVGN             │")
+            lines.append("│ Base64: U0lHTkFMUEhB            │")
+            lines.append("│ Hex: 5349474E414C50484E         │")
+            lines.append("└─────────────────────────────────┘")
+        
+        return lines
+    
+    def _constellation_mapping_interface(self) -> List[str]:
+        """Constellation Mapping tool interface"""
+        lines = []
+        lines.append("[yellow]⭐ Constellation Mapper[/yellow]")
+        lines.append("")
+        
+        if self.analysis_data:
+            lines.append("Signal Constellation Map:")
+            lines.append("┌─────────────────────────────────┐")
+            lines.append("│        ✦     ·   ✦              │")
+            lines.append("│    ·       ✦       ·   ✦       │")
+            lines.append("│  ✦   ·       ◆       ·         │")
+            lines.append("│      ✦   ·       ✦   ·   ✦     │")
+            lines.append("│  ·       ✦       ·       ✦     │")
+            lines.append("└─────────────────────────────────┘")
+            lines.append("")
+            
+            if self.analysis_stage >= 2:
+                lines.append("Matched Constellations:")
+                lines.append("• Cygnus (82% match)")
+                lines.append("• Andromeda (67% match)")
+                lines.append("• Custom Pattern (94% match)")
+        else:
+            lines.append("No coordinate data for mapping")
+            lines.append("Requires positioned signal sources")
+        
+        return lines
+    
+    def _temporal_sequencing_interface(self) -> List[str]:
+        """Temporal Sequencing tool interface"""
+        lines = []
+        lines.append("[yellow]⏱️ Temporal Sequence Analyzer[/yellow]")
+        lines.append("")
+        
+        if self.analysis_data:
+            lines.append("Temporal Pattern Analysis:")
+            lines.append("Time: 0s ──●──○────●──●──○────●──")
+            lines.append("Time: 2s ──○──●────○──○──●────○──")
+            lines.append("Time: 4s ──●──○────●──●──○────●──")
+            lines.append("Time: 6s ──○──●────○──○──●────○──")
+            lines.append("")
+            
+            if self.analysis_stage >= 2:
+                lines.append("Sequence Properties:")
+                lines.append("• Period: 2.0 seconds")
+                lines.append("• Pattern: Alternating binary")
+                lines.append("• Prediction: 95.2% accuracy")
+        else:
+            lines.append("No temporal data captured")
+            lines.append("Requires time-series signal data")
+        
+        return lines
+    
+    def _display_workspace(self) -> List[str]:
+        """Display analysis workspace"""
+        lines = []
+        
+        if self.workspace_data:
+            lines.append("Active Workspace Data:")
+            lines.append(f"[dim]{self.workspace_data}[/dim]")
+        else:
+            lines.append("[dim]Workspace empty - analysis pending[/dim]")
+        
+        lines.append("")
+        
+        # Show results if available
+        if self.tool_results:
+            lines.append("Analysis Results:")
+            for stage, result in self.tool_results.items():
+                lines.append(f"• {stage}: {result}")
+        
+        return lines
+    
+    def _create_analysis_progress_bar(self, progress: float, width: int) -> str:
+        """Create analysis progress bar"""
+        filled = int(progress * width)
+        empty = width - filled
+        bar = "█" * filled + "░" * empty
+        percentage = progress * 100
+        return f"│{bar}│ {percentage:.1f}%"
+    
+    def reset_analysis(self):
+        """Reset current analysis"""
+        self.analysis_progress = 0
+        self.analysis_stage = 0
+        self.tool_results = {}
+        self.workspace_data = ""
+        self.validation_status = "pending"
+        if self.current_tool:
+            self._display_tool_interface()
+        else:
+            self._display_tool_selection()
+    
+    def get_analysis_summary(self) -> Dict[str, Any]:
+        """Get summary of all completed analyses"""
+        return {
+            'total_analyses': len(self.analysis_history),
+            'tools_used': list(set(entry['tool'] for entry in self.analysis_history)),
+            'current_tool': self.current_tool,
+            'current_stage': self.analysis_stage,
+            'validation_status': self.validation_status
+        }
 
-class LogPane(BasePane):
-    """Captain's Log & Database pane [CLD]"""
+class LogPane(ScrollableContainer):
+    """Enhanced Captain's Log & Database pane [CLD] - Phase 10.5"""
     
     def __init__(self, **kwargs):
-        super().__init__("Captain's Log & Database [CLD]", **kwargs)
-        self.log_entries: List[str] = []
-    
-    def add_log_entry(self, entry: str):
-        """Add a new log entry"""
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-        formatted_entry = f"[dim]{timestamp}[/dim] {entry}"
-        self.log_entries.append(formatted_entry)
+        super().__init__(**kwargs)
+        self.title = "Captain's Log & Database [CLD]"
+        self.log_entries: List[Dict[str, Any]] = []
+        self.bookmarks: List[Dict[str, Any]] = []
+        self.search_filter = ""
+        self.category_filter = "all"
+        self.current_view = "recent"  # recent, search, category, bookmarks, timeline
+        self.cross_references: Dict[str, List[str]] = {}
+        self.lore_fragments: List[Dict[str, Any]] = []
+        self.discovery_timeline: List[Dict[str, Any]] = []
         
-        # Update the display with all log entries
-        self._update_log_display()
+        # Define 8 log categories with icons
+        self.log_categories = {
+            'discovery': {'name': 'Discovery', 'icon': '🔍', 'color': 'yellow'},
+            'analysis': {'name': 'Analysis', 'icon': '🔬', 'color': 'cyan'},
+            'navigation': {'name': 'Navigation', 'icon': '🧭', 'color': 'green'},
+            'communication': {'name': 'Communication', 'icon': '📡', 'color': 'blue'},
+            'system': {'name': 'System', 'icon': '⚙️', 'color': 'white'},
+            'warning': {'name': 'Warning', 'icon': '⚠️', 'color': 'red'},
+            'lore': {'name': 'Lore Fragment', 'icon': '📜', 'color': 'magenta'},
+            'personal': {'name': 'Personal Log', 'icon': '📝', 'color': 'dim'}
+        }
+        
+        # Set scrollable properties
+        self.can_focus = True
+        
+        # Content widget for displaying the log
+        self.content_widget = None
+        
+        # Initialize with welcome entry
+        self._add_initial_entries()
     
-    def _update_log_display(self):
-        """Update the log display with all entries"""
-        # Show the last 20 entries to avoid overwhelming the display
-        display_entries = self.log_entries[-20:] if len(self.log_entries) > 20 else self.log_entries
-        self.update_content(display_entries)
+    def compose(self) -> ComposeResult:
+        """Compose the scrollable log pane"""
+        self.content_widget = Static("", id="log_content")
+        yield self.content_widget
+    
+    async def on_mount(self) -> None:
+        """Initialize the pane after mounting"""
+        # Ensure content widget is available
+        if not self.content_widget:
+            try:
+                self.content_widget = self.query_one("#log_content")
+            except:
+                pass
+        # Display initial content
+        self._display_current_view()
+    
+    def update_content(self, lines: List[str]):
+        """Update the content of this scrollable pane with proper formatting for scrolling"""
+        if not self.content_widget:
+            # Try to find the content widget
+            try:
+                self.content_widget = self.query_one("#log_content")
+            except:
+                # If we can't find it, we're probably in test mode
+                return
+        
+        if self.content_widget:
+            # Build content with proper line breaks for scrolling
+            content_lines = [f"[bold cyan]{self.title}[/bold cyan]"]
+            content_lines.append("")  # Empty line after title
+            
+            if lines:
+                content_lines.extend(lines)
+            else:
+                content_lines.append("[dim]No data[/dim]")
+            
+            # Add extra lines to ensure scrolling works
+            content_lines.extend([""] * 3)  # Add some padding at the end
+            
+            # Join with newlines to create proper text content
+            full_content = "\n".join(content_lines)
+            self.content_widget.update(full_content)
+    
+    def _add_initial_entries(self):
+        """Add initial log entries for the system"""
+        import datetime
+        
+        welcome_entry = {
+            'id': 'INIT_001',
+            'timestamp': time.time(),
+            'category': 'system',
+            'title': 'Captain\'s Log System Initialized',
+            'content': 'Advanced logging and database system online. Ready for mission documentation.',
+            'tags': ['initialization', 'system'],
+            'metadata': {
+                'signal_refs': [],
+                'coordinates': None,
+                'confidence': 1.0
+            }
+        }
+        self.log_entries.append(welcome_entry)
+        
+        self._display_current_view()
+    
+    def add_log_entry(self, content: str, category: str = 'system', title: str = None, 
+                     tags: List[str] = None, signal_refs: List[str] = None,
+                     coordinates: Tuple[float, float, float] = None):
+        """Add a new enhanced log entry with metadata"""
+        entry_id = f"LOG_{len(self.log_entries):04d}"
+        
+        # Auto-generate title if not provided
+        if not title:
+            if len(content) > 50:
+                title = content[:47] + "..."
+            else:
+                title = content
+        
+        entry = {
+            'id': entry_id,
+            'timestamp': time.time(),
+            'category': category,
+            'title': title,
+            'content': content,
+            'tags': tags or [],
+            'metadata': {
+                'signal_refs': signal_refs or [],
+                'coordinates': coordinates,
+                'confidence': 1.0,
+                'read_count': 0,
+                'last_accessed': time.time()
+            }
+        }
+        
+        self.log_entries.append(entry)
+        
+        # Auto-detect cross-references
+        self._detect_cross_references(entry)
+        
+        # Add to discovery timeline if it's a discovery
+        if category == 'discovery':
+            self._add_to_timeline(entry)
+        
+        # Update display
+        self._display_current_view()
+    
+    def _detect_cross_references(self, entry: Dict[str, Any]):
+        """Automatically detect cross-references in log entries"""
+        content_lower = entry['content'].lower()
+        entry_id = entry['id']
+        
+        # Look for signal references
+        signal_patterns = ['sig_', 'signal', 'beacon', 'transmission']
+        for pattern in signal_patterns:
+            if pattern in content_lower:
+                if 'signals' not in self.cross_references:
+                    self.cross_references['signals'] = []
+                if entry_id not in self.cross_references['signals']:
+                    self.cross_references['signals'].append(entry_id)
+        
+        # Look for location references
+        location_patterns = ['alpha', 'beta', 'gamma', 'sector', 'coordinates']
+        for pattern in location_patterns:
+            if pattern in content_lower:
+                if 'locations' not in self.cross_references:
+                    self.cross_references['locations'] = []
+                if entry_id not in self.cross_references['locations']:
+                    self.cross_references['locations'].append(entry_id)
+        
+        # Look for analysis references
+        analysis_patterns = ['pattern', 'decode', 'cipher', 'frequency', 'analysis']
+        for pattern in analysis_patterns:
+            if pattern in content_lower:
+                if 'analysis' not in self.cross_references:
+                    self.cross_references['analysis'] = []
+                if entry_id not in self.cross_references['analysis']:
+                    self.cross_references['analysis'].append(entry_id)
+    
+    def _add_to_timeline(self, entry: Dict[str, Any]):
+        """Add entry to discovery timeline"""
+        timeline_entry = {
+            'timestamp': entry['timestamp'],
+            'entry_id': entry['id'],
+            'title': entry['title'],
+            'category': entry['category'],
+            'significance': self._calculate_significance(entry)
+        }
+        self.discovery_timeline.append(timeline_entry)
+        
+        # Sort timeline by timestamp
+        self.discovery_timeline.sort(key=lambda x: x['timestamp'])
+    
+    def _calculate_significance(self, entry: Dict[str, Any]) -> float:
+        """Calculate the significance score for a timeline entry"""
+        base_score = 1.0
+        
+        # Category weights
+        category_weights = {
+            'discovery': 3.0,
+            'lore': 2.5,
+            'analysis': 2.0,
+            'communication': 1.8,
+            'navigation': 1.5,
+            'system': 1.0,
+            'warning': 2.2,
+            'personal': 0.8
+        }
+        
+        category_weight = category_weights.get(entry['category'], 1.0)
+        
+        # Tag bonuses
+        tag_bonuses = {
+            'breakthrough': 2.0,
+            'ancient': 1.8,
+            'quantum': 1.5,
+            'mystery': 1.3,
+            'signal': 1.2
+        }
+        
+        tag_bonus = 1.0
+        for tag in entry.get('tags', []):
+            tag_bonus *= tag_bonuses.get(tag, 1.0)
+        
+        return base_score * category_weight * tag_bonus
+    
+    def add_bookmark(self, entry_id: str, note: str = ""):
+        """Add bookmark to an entry"""
+        entry = self._find_entry_by_id(entry_id)
+        if entry:
+            bookmark = {
+                'entry_id': entry_id,
+                'title': entry['title'],
+                'note': note,
+                'timestamp': time.time(),
+                'category': entry['category']
+            }
+            self.bookmarks.append(bookmark)
+    
+    def search_logs(self, query: str, category: str = "all") -> List[Dict[str, Any]]:
+        """Enhanced search with category filtering"""
+        self.search_filter = query.lower()
+        self.category_filter = category
+        
+        matching_entries = []
+        
+        for entry in self.log_entries:
+            # Category filter
+            if category != "all" and entry['category'] != category:
+                continue
+            
+            # Text search in title, content, and tags
+            searchable_text = (
+                entry['title'].lower() + " " +
+                entry['content'].lower() + " " +
+                " ".join(entry.get('tags', [])).lower()
+            )
+            
+            if query.lower() in searchable_text:
+                matching_entries.append(entry)
+        
+        return matching_entries
+    
+    def set_view(self, view_type: str, **kwargs):
+        """Set the current view mode"""
+        self.current_view = view_type
+        
+        if view_type == "search":
+            query = kwargs.get('query', '')
+            category = kwargs.get('category', 'all')
+            self.search_logs(query, category)
+        elif view_type == "category":
+            self.category_filter = kwargs.get('category', 'all')
+        
+        self._display_current_view()
+    
+    def _display_current_view(self):
+        """Display content based on current view mode"""
+        if self.current_view == "recent":
+            self._display_recent_entries()
+        elif self.current_view == "search":
+            self._display_search_results()
+        elif self.current_view == "category":
+            self._display_category_view()
+        elif self.current_view == "bookmarks":
+            self._display_bookmarks()
+        elif self.current_view == "timeline":
+            self._display_timeline()
+        elif self.current_view == "statistics":
+            self._display_statistics()
+        else:
+            self._display_recent_entries()
+    
+    def _display_recent_entries(self):
+        """Display recent log entries"""
+        lines = []
+        lines.append("[bold cyan]📚 CAPTAIN'S LOG & DATABASE[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        
+        # Header with statistics
+        total_entries = len(self.log_entries)
+        total_bookmarks = len(self.bookmarks)
+        timeline_events = len(self.discovery_timeline)
+        
+        lines.append(f"[yellow]Database Status:[/yellow] {total_entries} entries | {total_bookmarks} bookmarks | {timeline_events} timeline events")
+        lines.append("")
+        
+        # Category distribution
+        lines.append("[cyan]═══ RECENT ENTRIES ═══[/cyan]")
+        
+        # Show last 8 entries
+        recent_entries = self.log_entries[-8:] if len(self.log_entries) > 8 else self.log_entries
+        
+        for entry in reversed(recent_entries):
+            lines.extend(self._format_entry_summary(entry))
+            lines.append("")
+        
+        # Commands section
+        lines.append("[cyan]═══ DATABASE COMMANDS ═══[/cyan]")
+        lines.append("[green]View Controls:[/green]")
+        lines.append("• [yellow]LOG search <query>[/yellow] - Search entries")
+        lines.append("• [yellow]LOG category <category>[/yellow] - Filter by category") 
+        lines.append("• [yellow]LOG bookmarks[/yellow] - Show bookmarked entries")
+        lines.append("• [yellow]LOG timeline[/yellow] - Discovery timeline")
+        lines.append("• [yellow]LOG stats[/yellow] - Database statistics")
+        lines.append("")
+        lines.append("[green]Categories:[/green] " + " | ".join([f"[{cat['color']}]{cat['icon']} {name}[/{cat['color']}]" 
+                                                                for name, cat in self.log_categories.items()]))
+        
+        self.update_content(lines)
+    
+    def _display_search_results(self):
+        """Display search results"""
+        lines = []
+        lines.append("[bold cyan]🔍 SEARCH RESULTS[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        
+        if self.search_filter:
+            lines.append(f"[yellow]Query:[/yellow] '{self.search_filter}'")
+            if self.category_filter != "all":
+                cat_info = self.log_categories[self.category_filter]
+                lines.append(f"[yellow]Category Filter:[/yellow] {cat_info['icon']} {cat_info['name']}")
+            lines.append("")
+            
+            # Get search results
+            results = self.search_logs(self.search_filter, self.category_filter)
+            
+            lines.append(f"[green]Found {len(results)} matching entries:[/green]")
+            lines.append("")
+            
+            for entry in results[-10:]:  # Show last 10 results
+                lines.extend(self._format_entry_summary(entry))
+                lines.append("")
+        else:
+            lines.append("[dim]No search query specified[/dim]")
+            lines.append("")
+            lines.append("Use: [yellow]LOG search <query>[/yellow]")
+        
+        self.update_content(lines)
+    
+    def _display_category_view(self):
+        """Display entries filtered by category"""
+        lines = []
+        lines.append("[bold cyan]📂 CATEGORY VIEW[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        
+        if self.category_filter != "all":
+            cat_info = self.log_categories[self.category_filter]
+            lines.append(f"[yellow]Category:[/yellow] {cat_info['icon']} {cat_info['name']}")
+            lines.append("")
+            
+            # Filter entries by category
+            category_entries = [e for e in self.log_entries if e['category'] == self.category_filter]
+            
+            lines.append(f"[green]{len(category_entries)} entries in this category:[/green]")
+            lines.append("")
+            
+            for entry in category_entries[-8:]:  # Show last 8
+                lines.extend(self._format_entry_summary(entry))
+                lines.append("")
+        else:
+            # Show category overview
+            lines.append("[yellow]Category Overview:[/yellow]")
+            lines.append("")
+            
+            for cat_id, cat_info in self.log_categories.items():
+                count = len([e for e in self.log_entries if e['category'] == cat_id])
+                icon = cat_info['icon']
+                name = cat_info['name']
+                color = cat_info['color']
+                lines.append(f"[{color}]{icon} {name}:[/{color}] {count} entries")
+            
+            lines.append("")
+            lines.append("Use: [yellow]LOG category <category_name>[/yellow]")
+        
+        self.update_content(lines)
+    
+    def _display_bookmarks(self):
+        """Display bookmarked entries"""
+        lines = []
+        lines.append("[bold cyan]🔖 BOOKMARKED ENTRIES[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        
+        if self.bookmarks:
+            lines.append(f"[green]{len(self.bookmarks)} bookmarked entries:[/green]")
+            lines.append("")
+            
+            for bookmark in self.bookmarks:
+                entry = self._find_entry_by_id(bookmark['entry_id'])
+                if entry:
+                    lines.append(f"[yellow]📌 {bookmark['title']}[/yellow]")
+                    if bookmark['note']:
+                        lines.append(f"   Note: {bookmark['note']}")
+                    lines.append(f"   ID: {bookmark['entry_id']} | Category: {bookmark['category']}")
+                    lines.append("")
+        else:
+            lines.append("[dim]No bookmarked entries[/dim]")
+            lines.append("")
+            lines.append("Add bookmarks with: [yellow]BOOKMARK <entry_id> [note][/yellow]")
+        
+        self.update_content(lines)
+    
+    def _display_timeline(self):
+        """Display discovery timeline"""
+        lines = []
+        lines.append("[bold cyan]⏰ DISCOVERY TIMELINE[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        
+        if self.discovery_timeline:
+            lines.append(f"[green]{len(self.discovery_timeline)} timeline events:[/green]")
+            lines.append("")
+            
+            for i, event in enumerate(self.discovery_timeline[-10:]):  # Last 10 events
+                timestamp = time.strftime("%H:%M:%S", time.localtime(event['timestamp']))
+                significance = event['significance']
+                significance_bar = "●" * min(5, int(significance)) + "○" * max(0, 5 - int(significance))
+                
+                lines.append(f"[yellow]{timestamp}[/yellow] - {event['title']}")
+                lines.append(f"   Significance: {significance_bar} ({significance:.1f})")
+                lines.append(f"   Entry: {event['entry_id']} | Category: {event['category']}")
+                lines.append("")
+        else:
+            lines.append("[dim]No timeline events recorded[/dim]")
+            lines.append("")
+            lines.append("Timeline events are automatically created for discoveries")
+        
+        self.update_content(lines)
+    
+    def _display_statistics(self):
+        """Display database statistics and analytics"""
+        lines = []
+        lines.append("[bold cyan]📊 DATABASE STATISTICS[/bold cyan]")
+        lines.append("═" * 60)
+        lines.append("")
+        
+        total_entries = len(self.log_entries)
+        total_bookmarks = len(self.bookmarks)
+        total_cross_refs = sum(len(refs) for refs in self.cross_references.values())
+        
+        lines.append(f"[yellow]Total Entries:[/yellow] {total_entries}")
+        lines.append(f"[yellow]Bookmarks:[/yellow] {total_bookmarks}")
+        lines.append(f"[yellow]Cross-references:[/yellow] {total_cross_refs}")
+        lines.append(f"[yellow]Timeline Events:[/yellow] {len(self.discovery_timeline)}")
+        lines.append("")
+        
+        # Category breakdown
+        lines.append("[cyan]═══ CATEGORY BREAKDOWN ═══[/cyan]")
+        for cat_id, cat_info in self.log_categories.items():
+            count = len([e for e in self.log_entries if e['category'] == cat_id])
+            percentage = (count / total_entries * 100) if total_entries > 0 else 0
+            bar_length = int(percentage / 5)  # 20 char max bar
+            bar = "█" * bar_length + "░" * (20 - bar_length)
+            
+            icon = cat_info['icon']
+            name = cat_info['name']
+            color = cat_info['color']
+            lines.append(f"[{color}]{icon} {name:12}[/{color}] │{bar}│ {count:3d} ({percentage:5.1f}%)")
+        
+        lines.append("")
+        
+        # Cross-reference analysis
+        lines.append("[cyan]═══ CROSS-REFERENCE ANALYSIS ═══[/cyan]")
+        for ref_type, refs in self.cross_references.items():
+            lines.append(f"[yellow]{ref_type.title()}:[/yellow] {len(refs)} linked entries")
+        
+        lines.append("")
+        
+        # Export options
+        lines.append("[cyan]═══ EXPORT OPTIONS ═══[/cyan]")
+        lines.append("[green]Available Exports:[/green]")
+        lines.append("• [yellow]EXPORT text[/yellow] - Plain text format")
+        lines.append("• [yellow]EXPORT json[/yellow] - JSON data format")
+        lines.append("• [yellow]EXPORT timeline[/yellow] - Timeline only")
+        lines.append("• [yellow]EXPORT bookmarks[/yellow] - Bookmarked entries only")
+        
+        self.update_content(lines)
+    
+    def _format_entry_summary(self, entry: Dict[str, Any]) -> List[str]:
+        """Format an entry for summary display"""
+        lines = []
+        
+        # Get category info
+        cat_info = self.log_categories.get(entry['category'], {'icon': '📄', 'color': 'white'})
+        
+        # Format timestamp
+        timestamp = time.strftime("%H:%M:%S", time.localtime(entry['timestamp']))
+        
+        # Title line with category icon and timestamp
+        title_line = f"{cat_info['icon']} [{cat_info['color']}]{entry['title']}[/{cat_info['color']}] [dim]({timestamp})[/dim]"
+        lines.append(title_line)
+        
+        # Content preview (first 100 chars)
+        content_preview = entry['content'][:100]
+        if len(entry['content']) > 100:
+            content_preview += "..."
+        lines.append(f"   {content_preview}")
+        
+        # Metadata line
+        metadata_parts = []
+        metadata_parts.append(f"ID: {entry['id']}")
+        
+        if entry.get('tags'):
+            metadata_parts.append(f"Tags: {', '.join(entry['tags'])}")
+        
+        if entry['metadata'].get('signal_refs'):
+            metadata_parts.append(f"Signals: {len(entry['metadata']['signal_refs'])}")
+        
+        if metadata_parts:
+            lines.append(f"   [dim]{' | '.join(metadata_parts)}[/dim]")
+        
+        return lines
+    
+    def _find_entry_by_id(self, entry_id: str) -> Optional[Dict[str, Any]]:
+        """Find an entry by its ID"""
+        for entry in self.log_entries:
+            if entry['id'] == entry_id:
+                return entry
+        return None
+    
+    def export_data(self, format_type: str = "text", filter_type: str = "all") -> str:
+        """Export database in various formats"""
+        if format_type == "json":
+            import json
+            export_data = {
+                'entries': self.log_entries,
+                'bookmarks': self.bookmarks,
+                'cross_references': self.cross_references,
+                'timeline': self.discovery_timeline,
+                'export_timestamp': time.time()
+            }
+            return json.dumps(export_data, indent=2)
+        
+        elif format_type == "timeline":
+            lines = ["DISCOVERY TIMELINE EXPORT\n", "=" * 40, ""]
+            for event in self.discovery_timeline:
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(event['timestamp']))
+                lines.append(f"{timestamp} - {event['title']}")
+                lines.append(f"  Significance: {event['significance']:.1f}")
+                lines.append(f"  Entry ID: {event['entry_id']}")
+                lines.append("")
+            return "\n".join(lines)
+        
+        elif format_type == "bookmarks":
+            lines = ["BOOKMARKED ENTRIES EXPORT\n", "=" * 40, ""]
+            for bookmark in self.bookmarks:
+                entry = self._find_entry_by_id(bookmark['entry_id'])
+                if entry:
+                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry['timestamp']))
+                    lines.append(f"BOOKMARK: {bookmark['title']}")
+                    lines.append(f"Timestamp: {timestamp}")
+                    lines.append(f"Note: {bookmark['note']}")
+                    lines.append(f"Content: {entry['content']}")
+                    lines.append("")
+            return "\n".join(lines)
+        
+        else:  # Default text format
+            lines = ["CAPTAIN'S LOG DATABASE EXPORT\n", "=" * 50, ""]
+            lines.append(f"Export Date: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
+            lines.append(f"Total Entries: {len(self.log_entries)}")
+            lines.append("")
+            
+            for entry in self.log_entries:
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry['timestamp']))
+                cat_info = self.log_categories.get(entry['category'], {'name': 'Unknown'})
+                
+                lines.append(f"ENTRY: {entry['id']}")
+                lines.append(f"Title: {entry['title']}")
+                lines.append(f"Timestamp: {timestamp}")
+                lines.append(f"Category: {cat_info['name']}")
+                lines.append(f"Content: {entry['content']}")
+                
+                if entry.get('tags'):
+                    lines.append(f"Tags: {', '.join(entry['tags'])}")
+                
+                lines.append("")
+            
+            return "\n".join(lines)
     
     def clear_logs(self):
-        """Clear all log entries"""
-        self.log_entries.clear()
-        self.update_content(["Log cleared."])
+        """Clear all log entries (with confirmation)"""
+        self.log_entries = []
+        self.bookmarks = []
+        self.cross_references = {}
+        self.discovery_timeline = []
+        self._add_initial_entries()
+        
+    def get_database_summary(self) -> Dict[str, Any]:
+        """Get comprehensive database summary"""
+        return {
+            'total_entries': len(self.log_entries),
+            'total_bookmarks': len(self.bookmarks),
+            'category_counts': {cat: len([e for e in self.log_entries if e['category'] == cat]) 
+                              for cat in self.log_categories.keys()},
+            'cross_reference_counts': {ref_type: len(refs) for ref_type, refs in self.cross_references.items()},
+            'timeline_events': len(self.discovery_timeline),
+            'current_view': self.current_view,
+            'search_filter': self.search_filter,
+            'category_filter': self.category_filter
+        }
+
+class ScrollablePane(ScrollableContainer):
+    """Scrollable pane base class for content that needs scrolling"""
     
-    def search_logs(self, keyword: str) -> List[str]:
-        """Search log entries for a keyword"""
-        matching_entries = [entry for entry in self.log_entries if keyword.lower() in entry.lower()]
-        return matching_entries
+    def __init__(self, title: str, **kwargs):
+        super().__init__(**kwargs)
+        self.title = title
+        self.content_lines = []
+        self.can_focus = True
+    
+    def compose(self) -> ComposeResult:
+        """Compose the scrollable pane with content"""
+        yield Static(self._get_content(), id=f"{self.id}_content")
+    
+    def _get_content(self) -> str:
+        """Get the current content as a string"""
+        content = f"[bold cyan]{self.title}[/bold cyan]\n"
+        if self.content_lines:
+            content += "\n".join(self.content_lines)
+        else:
+            content += "[dim]No data[/dim]"
+        return content
+    
+    def update_content(self, lines: List[str]):
+        """Update the content of this scrollable pane"""
+        self.content_lines = lines[:]
+        content_widget = self.query_one(f"#{self.id}_content")
+        if content_widget:
+            content_widget.update(self._get_content())
