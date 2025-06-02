@@ -12,17 +12,35 @@ from textual.reactive import reactive
 import random
 import math
 import time
+import asyncio
 
 from .colors import AetherTapColors
 
-class BasePane(Static):
-    """Base class for all AetherTap panes"""
+class BasePane(ScrollableContainer):
+    """Base class for all AetherTap panes - now scrollable"""
     
     def __init__(self, title: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.title = title
         self.content_lines = []
+        self.content_widget = None
+        self.can_focus = True
+        self.auto_scroll = False  # Disable auto-scroll for base panes - let users scroll manually
         initial_content = f"[bold cyan]{self.title}[/bold cyan]\n[dim]Initializing...[/dim]"
-        super().__init__(initial_content, *args, **kwargs)
+    
+    def compose(self) -> ComposeResult:
+        """Compose the scrollable pane"""
+        self.content_widget = Static("", id=f"{self.id}_content")
+        yield self.content_widget
+    
+    async def on_mount(self) -> None:
+        """Initialize the pane after mounting"""
+        if not self.content_widget:
+            try:
+                self.content_widget = self.query_one(f"#{self.id}_content")
+            except:
+                pass
+        self._update_display()
     
     def add_content_line(self, line: str):
         """Add a line to the pane content"""
@@ -40,13 +58,35 @@ class BasePane(Static):
         self._update_display()
     
     def _update_display(self):
-        """Update the displayed content"""
-        content = f"[bold cyan]{self.title}[/bold cyan]\n"
-        if self.content_lines:
-            content += "\n".join(self.content_lines)
-        else:
-            content += "[dim]No data[/dim]"
-        self.update(content)
+        """Update the displayed content without auto-scroll for base panes"""
+        if not self.content_widget:
+            try:
+                self.content_widget = self.query_one(f"#{self.id}_content")
+            except:
+                return
+        
+        if self.content_widget:
+            # Build content with proper line breaks for scrolling - MINIMAL PADDING
+            content_lines = [f"[bold cyan]{self.title}[/bold cyan]"]
+            
+            if self.content_lines:
+                content_lines.extend(self.content_lines)
+            else:
+                content_lines.append("[dim]No data[/dim]")
+            
+            # NO extra padding - join directly
+            full_content = "\n".join(content_lines)
+            self.content_widget.update(full_content)
+            
+            # No auto-scroll for base panes - users can scroll manually
+    
+    def _scroll_to_bottom(self):
+        """Scroll to the bottom of the content"""
+        try:
+            # Get the maximum scroll position and scroll there
+            self.scroll_end(animate=False)
+        except:
+            pass  # Ignore errors if scrolling isn't ready yet
     
     def update_content(self, lines: List[str]):
         """Update the content of this pane"""
@@ -1328,7 +1368,7 @@ class DecoderPane(BasePane):
             lines.append("└─────────────────────────────────┘")
         
         return lines
-    
+
     def _constellation_mapping_interface(self) -> List[str]:
         """Constellation Mapping tool interface"""
         lines = []
@@ -1461,6 +1501,7 @@ class LogPane(ScrollableContainer):
         
         # Set scrollable properties
         self.can_focus = True
+        self.auto_scroll = True  # Enable auto-scroll to bottom for new entries
         
         # Content widget for displaying the log
         self.content_widget = None
@@ -1495,21 +1536,21 @@ class LogPane(ScrollableContainer):
                 return
         
         if self.content_widget:
-            # Build content with proper line breaks for scrolling
+            # Build content with MINIMAL padding for better UX
             content_lines = [f"[bold cyan]{self.title}[/bold cyan]"]
-            content_lines.append("")  # Empty line after title
             
             if lines:
                 content_lines.extend(lines)
             else:
                 content_lines.append("[dim]No data[/dim]")
             
-            # Add extra lines to ensure scrolling works
-            content_lines.extend([""] * 3)  # Add some padding at the end
-            
-            # Join with newlines to create proper text content
+            # Join with newlines - NO extra padding for better UX
             full_content = "\n".join(content_lines)
             self.content_widget.update(full_content)
+            
+            # Auto-scroll to bottom for LogPane only (to show new entries)
+            if self.auto_scroll:
+                self.call_after_refresh(self._scroll_to_bottom_with_delay)
     
     def _add_initial_entries(self):
         """Add initial log entries for the system"""
@@ -1535,7 +1576,7 @@ class LogPane(ScrollableContainer):
     def add_log_entry(self, content: str, category: str = 'system', title: str = None, 
                      tags: List[str] = None, signal_refs: List[str] = None,
                      coordinates: Tuple[float, float, float] = None):
-        """Add a new enhanced log entry with metadata"""
+        """Add a new enhanced log entry with metadata and auto-scroll"""
         entry_id = f"LOG_{len(self.log_entries):04d}"
         
         # Auto-generate title if not provided
@@ -1570,8 +1611,34 @@ class LogPane(ScrollableContainer):
         if category == 'discovery':
             self._add_to_timeline(entry)
         
-        # Update display
+        # Update display with auto-scroll
         self._display_current_view()
+        
+        # Force scroll to bottom for new entries
+        self.call_after_refresh(self._scroll_to_bottom_with_delay)
+    
+    def _scroll_to_bottom_with_delay(self):
+        """Scroll to bottom with a small delay to ensure content is rendered"""
+        def delayed_scroll():
+            try:
+                self.scroll_end(animate=True)  # Smooth animated scroll
+            except:
+                pass
+        
+        # Use a simple timer to delay the scroll
+        if hasattr(self, 'set_timer'):
+            self.set_timer(0.1, delayed_scroll)
+        else:
+            # Fallback - just scroll immediately
+            self._scroll_to_bottom()
+    
+    def _scroll_to_bottom(self):
+        """Scroll to the bottom of the content"""
+        try:
+            # Get the maximum scroll position and scroll there
+            self.scroll_end(animate=False)
+        except:
+            pass  # Ignore errors if scrolling isn't ready yet
     
     def _detect_cross_references(self, entry: Dict[str, Any]):
         """Automatically detect cross-references in log entries"""
@@ -1703,7 +1770,7 @@ class LogPane(ScrollableContainer):
         self._display_current_view()
     
     def _display_current_view(self):
-        """Display content based on current view mode"""
+        """Display content based on current view mode with auto-scroll"""
         if self.current_view == "recent":
             self._display_recent_entries()
         elif self.current_view == "search":
@@ -1718,33 +1785,25 @@ class LogPane(ScrollableContainer):
             self._display_statistics()
         else:
             self._display_recent_entries()
+        
+        # Ensure auto-scroll to bottom for new content
+        if self.auto_scroll:
+            self.call_after_refresh(self._scroll_to_bottom)
     
     def _display_recent_entries(self):
-        """Display recent log entries"""
+        """Display recent log entries with permanent content at top, new entries at bottom"""
         lines = []
         lines.append("[bold cyan]📚 CAPTAIN'S LOG & DATABASE[/bold cyan]")
         lines.append("═" * 60)
-        lines.append("")
         
-        # Header with statistics
+        # Header with statistics - PERMANENT CONTENT AT TOP
         total_entries = len(self.log_entries)
         total_bookmarks = len(self.bookmarks)
         timeline_events = len(self.discovery_timeline)
         
         lines.append(f"[yellow]Database Status:[/yellow] {total_entries} entries | {total_bookmarks} bookmarks | {timeline_events} timeline events")
-        lines.append("")
         
-        # Category distribution
-        lines.append("[cyan]═══ RECENT ENTRIES ═══[/cyan]")
-        
-        # Show last 8 entries
-        recent_entries = self.log_entries[-8:] if len(self.log_entries) > 8 else self.log_entries
-        
-        for entry in reversed(recent_entries):
-            lines.extend(self._format_entry_summary(entry))
-            lines.append("")
-        
-        # Commands section
+        # Commands section - PERMANENT CONTENT AT TOP
         lines.append("[cyan]═══ DATABASE COMMANDS ═══[/cyan]")
         lines.append("[green]View Controls:[/green]")
         lines.append("• [yellow]LOG search <query>[/yellow] - Search entries")
@@ -1752,67 +1811,63 @@ class LogPane(ScrollableContainer):
         lines.append("• [yellow]LOG bookmarks[/yellow] - Show bookmarked entries")
         lines.append("• [yellow]LOG timeline[/yellow] - Discovery timeline")
         lines.append("• [yellow]LOG stats[/yellow] - Database statistics")
-        lines.append("")
         lines.append("[green]Categories:[/green] " + " | ".join([f"[{cat['color']}]{cat['icon']} {name}[/{cat['color']}]" 
                                                                 for name, cat in self.log_categories.items()]))
+        lines.append("[cyan]═══ RECENT ENTRIES ═══[/cyan]")
+        
+        # Show recent entries at the BOTTOM - NEW CONTENT AREA
+        recent_entries = self.log_entries[-20:] if len(self.log_entries) > 20 else self.log_entries
+        
+        for entry in recent_entries:  # Don't reverse - show in chronological order
+            lines.extend(self._format_entry_summary(entry))
+        
+        # NO extra padding for better UX
+        if not recent_entries:
+            lines.append("[dim]No log entries yet[/dim]")
         
         self.update_content(lines)
     
     def _display_search_results(self):
-        """Display search results"""
+        """Display search results with controls at top, results at bottom"""
         lines = []
         lines.append("[bold cyan]🔍 SEARCH RESULTS[/bold cyan]")
         lines.append("═" * 60)
-        lines.append("")
         
+        # Search controls at TOP
         if self.search_filter:
             lines.append(f"[yellow]Query:[/yellow] '{self.search_filter}'")
             if self.category_filter != "all":
                 cat_info = self.log_categories[self.category_filter]
                 lines.append(f"[yellow]Category Filter:[/yellow] {cat_info['icon']} {cat_info['name']}")
-            lines.append("")
-            
-            # Get search results
-            results = self.search_logs(self.search_filter, self.category_filter)
-            
-            lines.append(f"[green]Found {len(results)} matching entries:[/green]")
-            lines.append("")
-            
-            for entry in results[-10:]:  # Show last 10 results
-                lines.extend(self._format_entry_summary(entry))
-                lines.append("")
         else:
             lines.append("[dim]No search query specified[/dim]")
-            lines.append("")
             lines.append("Use: [yellow]LOG search <query>[/yellow]")
+        
+        lines.append("[cyan]═══ SEARCH RESULTS ═══[/cyan]")
+        
+        # Search results at BOTTOM
+        if self.search_filter:
+            results = self.search_logs(self.search_filter, self.category_filter)
+            lines.append(f"[green]Found {len(results)} matching entries:[/green]")
+            
+            for entry in results[-15:]:  # Show last 15 results
+                lines.extend(self._format_entry_summary(entry))
         
         self.update_content(lines)
     
     def _display_category_view(self):
-        """Display entries filtered by category"""
+        """Display entries filtered by category with controls at top, entries at bottom"""
         lines = []
         lines.append("[bold cyan]📂 CATEGORY VIEW[/bold cyan]")
         lines.append("═" * 60)
-        lines.append("")
         
+        # Category controls at TOP
         if self.category_filter != "all":
             cat_info = self.log_categories[self.category_filter]
             lines.append(f"[yellow]Category:[/yellow] {cat_info['icon']} {cat_info['name']}")
-            lines.append("")
-            
-            # Filter entries by category
-            category_entries = [e for e in self.log_entries if e['category'] == self.category_filter]
-            
-            lines.append(f"[green]{len(category_entries)} entries in this category:[/green]")
-            lines.append("")
-            
-            for entry in category_entries[-8:]:  # Show last 8
-                lines.extend(self._format_entry_summary(entry))
-                lines.append("")
         else:
-            # Show category overview
+            # Show category overview at TOP
             lines.append("[yellow]Category Overview:[/yellow]")
-            lines.append("")
             
             for cat_id, cat_info in self.log_categories.items():
                 count = len([e for e in self.log_entries if e['category'] == cat_id])
@@ -1821,8 +1876,17 @@ class LogPane(ScrollableContainer):
                 color = cat_info['color']
                 lines.append(f"[{color}]{icon} {name}:[/{color}] {count} entries")
             
-            lines.append("")
             lines.append("Use: [yellow]LOG category <category_name>[/yellow]")
+        
+        lines.append("[cyan]═══ CATEGORY ENTRIES ═══[/cyan]")
+        
+        # Category entries at BOTTOM
+        if self.category_filter != "all":
+            category_entries = [e for e in self.log_entries if e['category'] == self.category_filter]
+            lines.append(f"[green]{len(category_entries)} entries in this category:[/green]")
+            
+            for entry in category_entries[-15:]:  # Show last 15
+                lines.extend(self._format_entry_summary(entry))
         
         self.update_content(lines)
     
