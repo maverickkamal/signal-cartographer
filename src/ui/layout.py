@@ -12,6 +12,7 @@ from textual.binding import Binding
 from .panes import SpectrumPane, SignalFocusPane, CartographyPane, DecoderPane, LogPane
 from .input_handler import CommandInput, AetherTapInputHandler
 from .colors import AetherTapColors
+from .tutorial import TutorialMenuScreen
 
 class AetherTapLayout(Container):
     """Main layout container for the AetherTap interface"""
@@ -301,7 +302,7 @@ class AetherTapScreen(Screen):
             self.aethertap_layout.log_pane.add_log_entry("")
         
         # Launch the detailed help screen
-        self.app.push_screen(HelpScreen())
+        self.app.push_screen(TutorialMenuScreen())
     
     def _clear_logs(self):
         """Clear the log pane"""
@@ -807,7 +808,8 @@ class AetherTapApp(App):
     def action_focus_spectrum(self):
         """Focus on the spectrum pane (F1)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.spectrum_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.spectrum_pane:
             screen.aethertap_layout.spectrum_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Main Spectrum Analyzer [MSA]")
@@ -815,7 +817,8 @@ class AetherTapApp(App):
     def action_focus_signal(self):
         """Focus on the signal focus pane (F2)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.signal_focus_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.signal_focus_pane:
             screen.aethertap_layout.signal_focus_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Signal Focus & Data [SFD]")
@@ -823,7 +826,8 @@ class AetherTapApp(App):
     def action_focus_map(self):
         """Focus on the cartography pane (F3)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.cartography_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.cartography_pane:
             screen.aethertap_layout.cartography_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Cartography & Navigation [CNP]")
@@ -831,7 +835,8 @@ class AetherTapApp(App):
     def action_focus_decoder(self):
         """Focus on the decoder pane (F4)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.decoder_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.decoder_pane:
             screen.aethertap_layout.decoder_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Decoder & Analysis Toolkit [DAT]")
@@ -839,7 +844,8 @@ class AetherTapApp(App):
     def action_focus_log(self):
         """Focus on the log pane (F5)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.log_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.log_pane:
             screen.aethertap_layout.log_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Captain's Log & Database [CLD]")
@@ -850,4 +856,4 @@ class AetherTapApp(App):
     
     def action_help(self):
         """Show comprehensive help screen (Ctrl+H)"""
-        self.push_screen(HelpScreen())
+        self.push_screen(TutorialMenuScreen())
