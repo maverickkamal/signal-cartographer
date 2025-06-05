@@ -3,13 +3,19 @@ Puzzle Manager for The Signal Cartographer
 Coordinates multiple puzzles, tracks progress, and manages puzzle sessions
 """
 
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Type
 from enum import Enum
 import time
 import json
 from dataclasses import dataclass, asdict
 
 from .puzzle_base import BasePuzzle, PuzzleState, PuzzleResult, PuzzleDifficulty
+# Import for puzzle types
+from src.puzzles.audio_patterns.pulse_sequence_puzzle import PulseSequencePuzzle
+from src.puzzles.audio_patterns.audio_conversion_puzzle import AudioConversionPuzzle
+from src.puzzles.audio_patterns.harmonic_pattern_puzzle import HarmonicPatternPuzzle
+# Placeholder for other potential puzzle types if a more dynamic system isn't built:
+# from .some_other_puzzle import SomeOtherPuzzle
 
 
 class SessionState(Enum):
@@ -57,6 +63,16 @@ class PuzzleManager:
         self.puzzle_history: List[PuzzleSession] = []
         self.analysis_sessions: List[AnalysisSession] = []
         self.current_analysis_session: Optional[AnalysisSession] = None
+
+        # Register of available puzzle types (classes)
+        # This makes the PuzzleManager aware of the types it can handle.
+        self._puzzle_types: Dict[str, Type[BasePuzzle]] = {
+            "PulseSequencePuzzle": PulseSequencePuzzle,
+            "AudioConversionPuzzle": AudioConversionPuzzle,
+            "HarmonicPatternPuzzle": HarmonicPatternPuzzle,
+            # "SomeOtherPuzzle": SomeOtherPuzzle, # Example for future expansion
+        }
+
         self.player_stats = {
             'puzzles_completed': 0,
             'total_score': 0,
@@ -69,6 +85,60 @@ class PuzzleManager:
             'best_scores': {}
         }
         self.achievements = []
+
+    def get_available_puzzle_types(self) -> List[str]:
+        """Returns a list of names of available puzzle types."""
+        return list(self._puzzle_types.keys())
+
+    def create_puzzle_instance(self, puzzle_type_name: str, difficulty: PuzzleDifficulty,
+                               puzzle_id: Optional[str] = None, signal_data: Optional[Any] = None) -> Optional[BasePuzzle]:
+        """
+        Creates an instance of a specified puzzle type.
+
+        Args:
+            puzzle_type_name: The name of the puzzle class (e.g., "PulseSequencePuzzle").
+            difficulty: The difficulty level for the puzzle.
+            puzzle_id: Optional specific ID for the puzzle.
+            signal_data: Optional signal data to associate with the puzzle.
+
+        Returns:
+            An instance of the puzzle, or None if the type is not found.
+        """
+        puzzle_class = self._puzzle_types.get(puzzle_type_name)
+        if not puzzle_class:
+            # print(f"Error: Puzzle type '{puzzle_type_name}' not found.") # Or log this
+            return None
+
+        # For PulseSequencePuzzle, the __init__ takes `difficulty` as a string.
+        # The PuzzleDifficulty enum needs to be converted.
+        # BasePuzzle and its derivatives might have different constructor signatures.
+        # This part needs to be flexible or standardized.
+        # Assuming puzzle constructors take at least 'difficulty' (as enum or string)
+        # and optionally 'puzzle_id' and 'signal_data'.
+        # For PulseSequencePuzzle, its __init__ is `PulseSequencePuzzle(self, difficulty)`
+        # where difficulty is expected to be a string like "easy", "medium", "hard".
+
+        try:
+            # Convert difficulty enum to string name for PulseSequencePuzzle
+            difficulty_str = difficulty.name.lower() # e.g., "easy"
+            instance = puzzle_class(difficulty=difficulty_str) # PulseSequencePuzzle expects string
+
+            # Set puzzle_id and signal_data if provided and supported by BasePuzzle's structure
+            if puzzle_id:
+                instance.puzzle_id = puzzle_id # BasePuzzle has puzzle_id
+            if signal_data:
+                instance.signal_data = signal_data # BasePuzzle has signal_data
+
+            # It's good practice to call generate_puzzle after instantiation if not done in __init__
+            # However, PulseSequencePuzzle.display_puzzle calls it if needed.
+            # And typically, a puzzle wouldn't be "generated" until it's about to be used.
+            # The register_puzzle method below is a good place to call instance.generate_puzzle()
+            # or the start_puzzle method.
+
+            return instance
+        except Exception as e:
+            # print(f"Error instantiating puzzle {puzzle_type_name}: {e}") # Or log
+            return None
         
     def start_analysis_session(self, tool_name: str, signal_id: str) -> str:
         """
@@ -456,7 +526,8 @@ class PuzzleManager:
         for achievement in new_achievements:
             if achievement not in self.achievements:
                 self.achievements.append(achievement)
-    
+                # print(f"Achievement Unlocked: {achievement}") # Optional: for immediate feedback
+
     def clear_completed_puzzles(self) -> int:
         """Remove completed puzzles from active list"""
         completed_ids = []

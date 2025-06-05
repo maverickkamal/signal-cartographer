@@ -1,448 +1,185 @@
-"""
-Audio Conversion Puzzle for The Signal Cartographer
-Players convert between different audio representations and formats
-"""
-
-from typing import Any, Dict, List, Tuple, Optional
 import random
-import time
+from typing import Optional, List, Dict
+from src.puzzles.puzzle_base import PuzzleBase
+from src.puzzles.audio_patterns.audio_tools import (
+    SIMPLE_TONE_MAP,
+    TONE_DISPLAY_MAP,
+    text_to_pseudo_audio,
+    format_pseudo_audio_for_display
+)
 
-from ..puzzle_base import BasePuzzle, PuzzleResult, PuzzleDifficulty, generate_puzzle_id
-from .audio_library import AudioLibrary
-from .audio_tools import AudioAnalyzer
-
-
-class AudioConversionPuzzle(BasePuzzle):
+class AudioConversionPuzzle(PuzzleBase):
     """
-    Audio conversion puzzle where players convert between different audio formats
+    A puzzle where the player needs to convert a pseudo-audio sequence back to text.
+    The 'audio' is represented by sequences of symbolic tones (like Morse code).
     """
-    
-    def __init__(self, 
-                 difficulty: PuzzleDifficulty = PuzzleDifficulty.NORMAL,
-                 signal_data: Any = None,
-                 conversion_type: str = "morse_to_text"):
+    WORD_LISTS: Dict[str, List[str]] = {
+        "easy": ["HELLO", "WORLD", "TEST", "CODE", "GAME", "PLAY", "CAT", "DOG", "SUN", "MOON"],
+        "medium": ["SIGNAL", "PUZZLE", "PYTHON", "AGENT", "SECRET", "MESSAGE", "BEACON", "CIPHER"],
+        "hard": ["ENCRYPTION", "ALGORITHM", "TRANSMISSION", "CARTOGRAPHER", "FREQUENCY", "SEQUENCE", "PROTOCOL"]
+    }
+    NUM_WORDS: Dict[str, int] = {
+        "easy": 1,
+        "medium": 2,
+        "hard": 2 # Hard could also be 3, or use longer words from its list
+    }
+    NUMBER_CHANCE: Dict[str, float] = {
+        "easy": 0.15,
+        "medium": 0.30,
+        "hard": 0.50
+    }
+
+    def __init__(self, difficulty: str):
+        super().__init__(difficulty)
+        self.title = "Audio-to-Text Conversion"
+        self.original_text: Optional[str] = None
+        self.pseudo_audio_sequence: Optional[List[List[int]]] = None
+        self.displayed_audio: Optional[str] = None
+        # self.solution will store self.original_text
+
+    def generate_puzzle(self):
         """
-        Initialize audio conversion puzzle
-        
-        Args:
-            difficulty: Puzzle difficulty level
-            signal_data: Associated signal data
-            conversion_type: Type of conversion (morse_to_text, frequency_to_note, binary_to_audio, text_to_morse)
+        Generates an audio-to-text conversion puzzle.
+        - Selects a word or words based on difficulty.
+        - May add numbers based on difficulty.
+        - Converts the text to a pseudo-audio sequence.
         """
+        # Use self.difficulty, defaulting to "medium" if not found (though PuzzleBase should validate)
+        current_difficulty_key = self.difficulty if self.difficulty in self.WORD_LISTS else "medium"
+
+        word_list = self.WORD_LISTS[current_difficulty_key]
+        num_words = self.NUM_WORDS[current_difficulty_key]
         
-        self.audio_library = AudioLibrary()
-        self.audio_analyzer = AudioAnalyzer()
-        self.conversion_type = conversion_type
-        self.source_format = ""
-        self.target_format = ""
-        self.source_data = ""
-        self.conversion_rules: List[str] = []
-        self.reference_table: Dict[str, str] = {}
+        selected_words = [random.choice(word_list) for _ in range(num_words)]
         
-        # Calculate difficulty parameters
-        max_attempts = max(3, 6 - difficulty.value)
-        time_limit = None
-        if difficulty.value >= 3:
-            time_limit = 360 - (difficulty.value - 3) * 60  # 360, 300, 240, 180 seconds
-        
-        super().__init__(
-            puzzle_id=generate_puzzle_id(),
-            name=f"Audio Convert - {conversion_type.replace('_', ' ').title()}",
-            description=f"Convert between audio formats",
-            difficulty=difficulty,
-            max_attempts=max_attempts,
-            time_limit=time_limit,
-            signal_data=signal_data
-        )
-    
-    def _initialize_puzzle(self) -> None:
-        """Initialize the audio conversion puzzle"""
-        # Generate conversion based on type and difficulty
-        if self.conversion_type == "morse_to_text":
-            self._generate_morse_to_text()
-        elif self.conversion_type == "frequency_to_note":
-            self._generate_frequency_to_note()
-        elif self.conversion_type == "binary_to_audio":
-            self._generate_binary_to_audio()
-        elif self.conversion_type == "text_to_morse":
-            self._generate_text_to_morse()
-        else:
-            self._generate_morse_to_text()  # Default
-        
-        # Generate hints
-        self._generate_hints()
-        
-        # Calculate max score
-        self.max_score = 650 + (self.difficulty.value - 1) * 325
-    
-    def _generate_morse_to_text(self):
-        """Generate morse code to text conversion"""
-        morse_map = self.audio_library.get_morse_patterns()
-        
-        # Create word list based on difficulty
-        word_lists = {
-            1: ["CAT", "DOG", "SOS", "HI", "OK"],
-            2: ["HELLO", "WORLD", "SIGNAL", "AUDIO", "RADIO"],
-            3: ["BEACON", "MESSAGE", "TRANSMISSION", "DECODE"]
-        }
-        
-        level = min(self.difficulty.value // 2 + 1, 3)
-        word = random.choice(word_lists[level])
-        
-        # Convert word to morse
-        morse_parts = []
-        for char in word:
-            if char in morse_map:
-                morse_parts.append(morse_map[char])
-        
-        self.source_data = " / ".join(morse_parts)  # Use / to separate letters
-        self.solution = word
-        
-        self.source_format = "Morse Code"
-        self.target_format = "Text"
-        self.conversion_rules = [
-            "Morse patterns separated by ' / ' represent individual letters",
-            "● = dot (short signal), ■ = dash (long signal)",
-            "International Morse Code standard"
-        ]
-        
-        # Create reference table (partial for hints)
-        self.reference_table = {pattern: letter for letter, pattern in morse_map.items()}
-    
-    def _generate_frequency_to_note(self):
-        """Generate frequency to musical note conversion"""
-        # Musical note frequencies (Hz)
-        note_frequencies = {
-            "C4": 261.63, "C#4": 277.18, "D4": 293.66, "D#4": 311.13,
-            "E4": 329.63, "F4": 349.23, "F#4": 369.99, "G4": 392.00,
-            "G#4": 415.30, "A4": 440.00, "A#4": 466.16, "B4": 493.88,
-            "C5": 523.25, "D5": 587.33, "E5": 659.25, "F5": 698.46,
-            "G5": 783.99, "A5": 880.00
-        }
-        
-        # Select notes based on difficulty
-        if self.difficulty.value <= 2:
-            # Simple notes without sharps
-            simple_notes = {k: v for k, v in note_frequencies.items() if "#" not in k}
-            selected_notes = random.sample(list(simple_notes.keys()), min(3, len(simple_notes)))
-        else:
-            # Include sharps for difficulty
-            selected_notes = random.sample(list(note_frequencies.keys()), min(4, len(note_frequencies)))
-        
-        # Create frequency sequence
-        frequencies = [note_frequencies[note] for note in selected_notes]
-        self.source_data = ", ".join([f"{freq:.2f} Hz" for freq in frequencies])
-        self.solution = " ".join(selected_notes)
-        
-        self.source_format = "Frequencies"
-        self.target_format = "Musical Notes"
-        self.conversion_rules = [
-            "Convert frequencies to standard musical note names",
-            "Format: Note + Octave (e.g., A4, C#5)",
-            "A4 = 440.00 Hz reference"
-        ]
-        
-        self.reference_table = {f"{freq:.2f} Hz": note for note, freq in note_frequencies.items()}
-    
-    def _generate_binary_to_audio(self):
-        """Generate binary to audio pattern conversion"""
-        # Binary patterns representing audio characteristics
-        audio_patterns = {
-            "00": "Silent", "01": "Soft", "10": "Medium", "11": "Loud",
-            "000": "Quiet", "001": "Low", "010": "Mid", "011": "High",
-            "100": "Bass", "101": "Treble", "110": "Full", "111": "Peak"
-        }
-        
-        # Generate binary sequence based on difficulty
-        if self.difficulty.value <= 2:
-            # 2-bit patterns
-            patterns = ["00", "01", "10", "11"]
-            sequence_length = 3 + self.difficulty.value
-        else:
-            # 3-bit patterns
-            patterns = ["000", "001", "010", "011", "100", "101", "110", "111"]
-            sequence_length = 2 + (self.difficulty.value - 2)
-        
-        selected_patterns = random.choices(patterns, k=sequence_length)
-        self.source_data = " ".join(selected_patterns)
-        
-        # Convert to audio descriptions
-        audio_descriptions = [audio_patterns[pattern] for pattern in selected_patterns]
-        self.solution = " ".join(audio_descriptions)
-        
-        self.source_format = "Binary"
-        self.target_format = "Audio Levels"
-        self.conversion_rules = [
-            "Convert binary patterns to audio level descriptions",
-            "Each binary group represents audio characteristics",
-            "Higher binary values = louder/stronger signals"
-        ]
-        
-        self.reference_table = audio_patterns
-    
-    def _generate_text_to_morse(self):
-        """Generate text to morse code conversion"""
-        morse_map = self.audio_library.get_morse_patterns()
-        
-        # Create words based on difficulty
-        word_lists = {
-            1: ["HI", "SOS", "OK"],
-            2: ["HELLO", "RADIO", "SIGNAL"],
-            3: ["BEACON", "DECODE", "TRANSMISSION"]
-        }
-        
-        level = min(self.difficulty.value // 2 + 1, 3)
-        word = random.choice(word_lists[level])
-        
-        self.source_data = word
-        
-        # Convert to morse
-        morse_parts = []
-        for char in word:
-            if char in morse_map:
-                morse_parts.append(morse_map[char])
-        
-        self.solution = " / ".join(morse_parts)
-        
-        self.source_format = "Text"
-        self.target_format = "Morse Code"
-        self.conversion_rules = [
-            "Convert text to International Morse Code",
-            "● = dot (short), ■ = dash (long)",
-            "Separate letters with ' / '"
-        ]
-        
-        self.reference_table = morse_map
-    
-    def _generate_hints(self):
-        """Generate hints for the puzzle"""
-        # Hint 1: Conversion type
-        conversion_names = {
-            "morse_to_text": "Morse Code → Text",
-            "frequency_to_note": "Frequency → Musical Notes",
-            "binary_to_audio": "Binary → Audio Levels",
-            "text_to_morse": "Text → Morse Code"
-        }
-        conversion_name = conversion_names.get(self.conversion_type, self.conversion_type)
-        self.add_hint(1, f"Conversion: {conversion_name}", 120)
-        
-        # Hint 2: Conversion rules
-        if self.difficulty.value >= 2:
-            self.add_hint(2, f"Rule: {self.conversion_rules[0]}", 180)
-        
-        # Hint 3: Reference info
-        if self.difficulty.value >= 3:
-            reference_hints = {
-                "morse_to_text": "● = dot, ■ = dash. Example: ●■ = A",
-                "frequency_to_note": "A4 = 440 Hz. Octave doubles frequency.",
-                "binary_to_audio": "00=Silent, 01=Soft, 10=Medium, 11=Loud",
-                "text_to_morse": "A = ●■, B = ■●●●, C = ■●■●"
-            }
-            hint = reference_hints.get(self.conversion_type, "Check the reference table")
-            self.add_hint(3, hint, 240)
-        
-        # Hint 4: Partial conversion
-        if self.difficulty.value >= 4:
-            if self.conversion_type == "morse_to_text":
-                # Show first letter conversion
-                first_pattern = self.source_data.split(" / ")[0]
-                if first_pattern in self.reference_table:
-                    first_letter = self.reference_table[first_pattern]
-                    self.add_hint(4, f"First pattern '{first_pattern}' = '{first_letter}'", 300)
-            elif self.conversion_type == "frequency_to_note":
-                # Show first frequency conversion
-                first_freq = self.source_data.split(", ")[0]
-                if first_freq in self.reference_table:
-                    first_note = self.reference_table[first_freq]
-                    self.add_hint(4, f"First frequency {first_freq} = {first_note}", 300)
-            else:
-                self.add_hint(4, "Use the reference table for step-by-step conversion", 300)
-        
-        # Hint 5: Solution preview
-        if self.difficulty.value >= 4:
-            solution_parts = self.solution.split()
-            if len(solution_parts) > 1:
-                partial_solution = solution_parts[0] + "..."
-                self.add_hint(5, f"Starts with: {partial_solution}", 400)
-    
-    def validate_input(self, player_input: str) -> Tuple[bool, str]:
-        """Validate player's conversion"""
-        player_input = player_input.strip().upper()
-        expected = self.solution.upper()
-        
-        # Direct match
-        if player_input == expected:
-            return True, f"🎯 Perfect conversion! Correct answer: {self.solution}"
-        
-        # Remove common formatting differences
-        player_cleaned = player_input.replace("  ", " ").replace(" / ", "/").replace("/", " / ")
-        expected_cleaned = expected.replace("  ", " ").replace(" / ", "/").replace("/", " / ")
-        
-        if player_cleaned == expected_cleaned:
-            return True, f"🎯 Correct! Formatting adjusted: {self.solution}"
-        
-        # Check partial matches for multi-part answers
-        player_parts = player_input.split()
-        expected_parts = expected.split()
-        
-        if len(player_parts) == len(expected_parts):
-            correct_parts = sum(1 for p, e in zip(player_parts, expected_parts) if p == e)
-            accuracy = correct_parts / len(expected_parts)
+        if random.random() < self.NUMBER_CHANCE[current_difficulty_key]:
+            num_to_add = str(random.randint(1, 999))
+            target_idx = random.randrange(len(selected_words)) if selected_words else 0
             
-            if accuracy >= 0.8:
-                return False, f"Very close! {correct_parts}/{len(expected_parts)} parts correct."
-            elif accuracy >= 0.5:
-                return False, f"Good progress! {correct_parts}/{len(expected_parts)} parts correct."
-        
-        # Special handling for morse code
-        if self.conversion_type in ["morse_to_text", "text_to_morse"]:
-            # Check character by character for morse
-            if self.conversion_type == "morse_to_text":
-                # Compare letters
-                if len(player_input) == len(self.solution):
-                    correct_chars = sum(1 for p, e in zip(player_input, self.solution) if p == e)
-                    if correct_chars >= len(self.solution) * 0.7:
-                        return False, f"Close! {correct_chars}/{len(self.solution)} letters correct."
-        
-        return False, f"Incorrect conversion. Expected: {self.solution}"
-    
-    def get_current_display(self) -> List[str]:
-        """Get the current puzzle display"""
-        lines = []
-        
-        # Header
-        lines.append(f"[bold cyan]🔄 AUDIO CONVERSION - {self.conversion_type.replace('_', ' ').upper()}[/bold cyan]")
-        lines.append("=" * 60)
-        lines.append("")
-        
-        # Puzzle info
-        lines.append(f"[yellow]Conversion:[/yellow] {self.source_format} → {self.target_format}")
-        lines.append(f"[yellow]Difficulty:[/yellow] {self.difficulty.name}")
-        lines.append("")
-        
-        # Source data
-        lines.append("[cyan]═══ SOURCE DATA ═══[/cyan]")
-        lines.append(f"[green]{self.source_data}[/green]")
-        lines.append("")
-        
-        # Conversion rules
-        lines.append("[cyan]═══ CONVERSION RULES ═══[/cyan]")
-        for i, rule in enumerate(self.conversion_rules, 1):
-            lines.append(f"[white]{i}.[/white] {rule}")
-        lines.append("")
-        
-        # Reference table (partial based on difficulty)
-        if self.difficulty.value <= 3:
-            lines.append("[cyan]═══ REFERENCE TABLE ═══[/cyan]")
-            
-            if self.conversion_type == "morse_to_text":
-                # Show sample morse patterns
-                sample_patterns = ["●■", "■●●●", "■●■●", "■●●", "●"]
-                sample_letters = ["A", "B", "C", "D", "E"]
-                lines.append("Sample Morse Patterns:")
-                for pattern, letter in zip(sample_patterns, sample_letters):
-                    lines.append(f"  {pattern} = {letter}")
-                    
-            elif self.conversion_type == "frequency_to_note":
-                # Show sample frequencies
-                lines.append("Common Note Frequencies:")
-                lines.append("  A4 = 440.00 Hz")
-                lines.append("  C4 = 261.63 Hz")
-                lines.append("  E4 = 329.63 Hz")
-                lines.append("  G4 = 392.00 Hz")
-                
-            elif self.conversion_type == "binary_to_audio":
-                # Show binary mapping
-                lines.append("Binary to Audio Mapping:")
-                if "00" in self.reference_table:
-                    # 2-bit patterns
-                    for binary, audio in [("00", "Silent"), ("01", "Soft"), ("10", "Medium"), ("11", "Loud")]:
-                        lines.append(f"  {binary} = {audio}")
+            if selected_words and random.random() < 0.7: # Add to existing word
+                if random.random() < 0.5:
+                    selected_words[target_idx] = num_to_add + selected_words[target_idx]
                 else:
-                    # 3-bit patterns
-                    for binary, audio in list(self.reference_table.items())[:4]:
-                        lines.append(f"  {binary} = {audio}")
-                        
-            elif self.conversion_type == "text_to_morse":
-                # Show sample text to morse
-                lines.append("Sample Text to Morse:")
-                for letter, pattern in [("A", "●■"), ("B", "■●●●"), ("C", "■●■●"), ("D", "■●●")]:
-                    lines.append(f"  {letter} = {pattern}")
-            
-            lines.append("")
+                    selected_words[target_idx] = selected_words[target_idx] + num_to_add
+            else: # Add as a new "word" or if selected_words is empty
+                selected_words.insert(target_idx, num_to_add) # Insert to make it more varied
         
-        # Target format
-        lines.append("[cyan]═══ CONVERT TO ═══[/cyan]")
-        lines.append(f"[yellow]{self.target_format}:[/yellow] [red]???[/red]")
-        lines.append("")
+        self.original_text = " ".join(selected_words)
         
-        # Instructions
-        lines.append("[green]Instructions:[/green]")
-        lines.append(f"• Convert the {self.source_format} data to {self.target_format}")
-        lines.append("• Follow the conversion rules exactly")
-        lines.append("• Use the reference table for guidance")
-        if self.conversion_type == "morse_to_text":
-            lines.append("• Enter letters without spaces (e.g., HELLO)")
-        elif self.conversion_type == "text_to_morse":
-            lines.append("• Separate morse patterns with ' / ' (e.g., ●■ / ■●●●)")
-        elif self.conversion_type == "frequency_to_note":
-            lines.append("• Enter notes separated by spaces (e.g., A4 C5 E4)")
-        lines.append("• Use [yellow]HINT[/yellow] for conversion help")
+        self.pseudo_audio_sequence = text_to_pseudo_audio(self.original_text, SIMPLE_TONE_MAP)
+        self.displayed_audio = format_pseudo_audio_for_display(
+            self.pseudo_audio_sequence,
+            TONE_DISPLAY_MAP
+        )
         
-        return lines
-    
-    def get_progress_display(self) -> List[str]:
-        """Get progress indicators"""
-        lines = []
+        self.puzzle_data = self.displayed_audio
+        self.solution = self.original_text
         
-        lines.append("[cyan]═══ CONVERSION PROGRESS ═══[/cyan]")
-        lines.append(f"[yellow]Attempts:[/yellow] {self.attempts_made}/{self.max_attempts}")
-        lines.append(f"[yellow]Current Score:[/yellow] {self.current_score}/{self.max_score}")
+        return self.puzzle_data
+
+    def solve_puzzle(self, player_solution: str) -> bool:
+        """
+        Checks if the player's transcribed text matches the original text.
+        Comparison is case-insensitive and ignores leading/trailing/excess internal whitespace.
+        """
+        if self.solution is None:
+            return False
         
-        if self.time_limit:
-            elapsed = self._get_elapsed_time()
-            remaining = max(0, self.time_limit - elapsed)
-            minutes = int(remaining // 60)
-            seconds = int(remaining % 60)
-            lines.append(f"[yellow]Time Remaining:[/yellow] {minutes:02d}:{seconds:02d}")
+        normalized_player_solution = " ".join(player_solution.strip().upper().split())
+        normalized_actual_solution = " ".join(self.solution.strip().upper().split())
         
-        if self.hints_used > 0:
-            lines.append(f"[yellow]Conversion Tools Used:[/yellow] {self.hints_used}")
+        return normalized_player_solution == normalized_actual_solution
+
+    def display_puzzle(self) -> str:
+        """
+        Presents the puzzle to the player, showing the pseudo-audio representation.
+        """
+        if not self.puzzle_data: # Should imply self.displayed_audio is also None
+            self.generate_puzzle()
+
+        legend = (
+            "Legend:\n"
+            "  '.' represents a short tone (like Morse dot)\n"
+            "  '-' represents a long tone (like Morse dash)\n"
+            "  Tones for each character are grouped (e.g., '.-' is one letter).\n"
+            "  Spaces between these groups represent separation between letters.\n"
+            "  A wider gap (e.g., ' / ' or '   ') separates words.\n"
+            "The following sequence of tones was detected:"
+        )
+
+        return (
+            f"Puzzle: {self.title}\n"
+            f"Difficulty: {self.difficulty}\n\n"
+            f"{legend}\n\n"
+            f"Audio Signal: '{self.displayed_audio}'\n\n" # self.puzzle_data is self.displayed_audio
+            f"Task: Transcribe the text from the pseudo-audio signal.\n"
+            f"Enter the transcribed text below."
+        )
+
+if __name__ == '__main__':
+    def run_conversion_test(difficulty_level):
+        print(f"\n--- Testing AudioConversionPuzzle: {difficulty_level.upper()} ---")
+        puzzle = AudioConversionPuzzle(difficulty=difficulty_level)
         
-        lines.append(f"[yellow]Source Format:[/yellow] {self.source_format}")
-        lines.append(f"[yellow]Target Format:[/yellow] {self.target_format}")
+        # Test display before generation (should auto-generate)
+        print("Displaying puzzle (auto-generates if needed):")
+        print(puzzle.display_puzzle())
         
-        # Data complexity
-        source_parts = len(self.source_data.split())
-        lines.append(f"[yellow]Data Elements:[/yellow] {source_parts}")
-        
-        # Conversion complexity
-        complexity_levels = {
-            "morse_to_text": "Signal Decoding",
-            "frequency_to_note": "Frequency Analysis",
-            "binary_to_audio": "Digital Conversion",
-            "text_to_morse": "Signal Encoding"
+        print(f"\nOriginal Text (Solution): '{puzzle.original_text}'")
+        # print(f"Pseudo-audio (raw internal): {puzzle.pseudo_audio_sequence}") # Can be verbose
+
+        correct_answer = puzzle.original_text
+        if correct_answer is None:
+            print("Error: original_text is None after puzzle generation and display.")
+            return
+
+        test_attempts = {
+            "Exact Match": correct_answer,
+            "Lowercase": correct_answer.lower(),
+            "Leading/Trailing Space": f" {correct_answer} ",
+            "Extra Internal Space": "  ".join(correct_answer.split(" ")) if " " in correct_answer else correct_answer,
+            "Slightly Incorrect": correct_answer[:-1] + "X" if len(correct_answer) > 1 else "X",
+            "Empty String": ""
         }
-        complexity = complexity_levels.get(self.conversion_type, "Format Conversion")
-        lines.append(f"[yellow]Complexity:[/yellow] {complexity}")
         
-        return lines
-    
-    def start(self) -> bool:
-        """Start the puzzle (compatibility method)"""
-        return self.start_puzzle()
-    
-    def _on_puzzle_start(self) -> None:
-        """Called when puzzle starts"""
-        self.current_progress['conversion_type'] = self.conversion_type
-        self.current_progress['source_data'] = self.source_data
-        self.current_progress['source_format'] = self.source_format
-        self.current_progress['target_format'] = self.target_format
-        self.current_progress['start_time'] = time.time()
-    
-    def _on_puzzle_complete(self, result: PuzzleResult) -> None:
-        """Called when puzzle completes"""
-        self.current_progress['completion_time'] = time.time()
-        self.current_progress['final_score'] = result.score
-        self.current_progress['conversion_successful'] = result.success
-        self.current_progress['conversion_rules'] = self.conversion_rules 
+        if not correct_answer: # Handle case where original_text might be empty (e.g. if word lists were empty)
+             test_attempts["Empty String (Correct if solution is empty)"] = ""
+
+
+        for desc, attempt_str in test_attempts.items():
+            # Skip "Slightly Incorrect" if it accidentally matches the solution after normalization
+            if desc == "Slightly Incorrect" and \
+               (" ".join(attempt_str.strip().upper().split()) == " ".join(correct_answer.strip().upper().split())):
+                print(f"Skipping '{desc}' test as it matched solution after normalization.")
+                continue
+
+            is_correct = puzzle.solve_puzzle(attempt_str)
+            expected_correct = (" ".join(attempt_str.strip().upper().split()) == \
+                                " ".join(correct_answer.strip().upper().split()))
+
+            status = "Correct" if is_correct else "Incorrect"
+            expectation_met = (is_correct == expected_correct)
+
+            print(f"Attempt '{desc}' ('{attempt_str}'): {status} "
+                  f"({'OK' if expectation_met else 'FAIL - Expected: ' + ('Correct' if expected_correct else 'Incorrect')})")
+
+    run_conversion_test("easy")
+    run_conversion_test("medium")
+    run_conversion_test("hard")
+
+    print("\n--- Specific Test: Puzzle with Numbers ---")
+    number_puzzle_made = False
+    for i in range(10): # Try a few times to get a number
+        num_puzzle = AudioConversionPuzzle(difficulty="hard")
+        num_puzzle.generate_puzzle()
+        if num_puzzle.original_text and any(char.isdigit() for char in num_puzzle.original_text):
+            print(f"Generated Text with Numbers: '{num_puzzle.original_text}'")
+            print(f"Displayed Audio: '{num_puzzle.displayed_audio}'")
+            is_ok = num_puzzle.solve_puzzle(num_puzzle.original_text)
+            print(f"Self-solve with numbers: {'Correct' if is_ok else 'Incorrect'}")
+            number_puzzle_made = True
+            break
+    if not number_puzzle_made:
+        print("Could not generate a puzzle with numbers through random chance for test.")
+
+    print("\n--- End of AudioConversionPuzzle Tests ---")
