@@ -46,8 +46,8 @@ You are a Signal Cartographer exploring space sectors to detect and analyze myst
 
 5. **Run the game:**
    ```bash
-python main.py
-```
+   python main.py
+   ```
 
    Or use the provided scripts:
    - **Windows:** `.\start_game.ps1`
