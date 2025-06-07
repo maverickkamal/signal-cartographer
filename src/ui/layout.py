@@ -12,6 +12,7 @@ from textual.binding import Binding
 from .panes import SpectrumPane, SignalFocusPane, CartographyPane, DecoderPane, LogPane
 from .input_handler import CommandInput, AetherTapInputHandler
 from .colors import AetherTapColors
+from .tutorial import TutorialMenuScreen
 
 class AetherTapLayout(Container):
     """Main layout container for the AetherTap interface"""
@@ -139,19 +140,152 @@ class AetherTapScreen(Screen):
                         self.aethertap_layout.log_pane.add_log_entry(f"🔍 Signal focus display updated!")
                         
                     elif command_name == 'analyze':
-                        # Update decoder display with analysis results
+                        # Update decoder display with enhanced analysis using new tools
                         if self.game_controller.focused_signal:
-                            analysis_results = [
-                                f"Signal Analysis Results:",
-                                f"ID: {self.game_controller.focused_signal.id}",
-                                f"Signature: {self.game_controller.focused_signal.signature}",
-                                f"Stability: {self.game_controller.focused_signal.stability:.2f}",
-                                f"Sector: {self.game_controller.focused_signal.sector}"
-                            ]
+                            # Use the enhanced decoder pane with tool selection
                             if self.aethertap_layout.decoder_pane:
-                                self.aethertap_layout.decoder_pane.update_content(analysis_results)
-                            self.aethertap_layout.log_pane.add_log_entry(f"🛠️ Analysis results updated in decoder!")
+                                # Check if we have additional parameters for tool selection
+                                if len(parts) > 1:
+                                    tool_name = parts[1].lower()
+                                    # Select the specified analysis tool
+                                    self.aethertap_layout.decoder_pane.select_tool(tool_name)
+                                    self.aethertap_layout.decoder_pane.start_analysis(self.game_controller.focused_signal)
+                                    
+                                    # Auto-log tool selection and analysis start
+                                    tool_data = self.aethertap_layout.decoder_pane.analysis_tools.get(tool_name, {})
+                                    complexity = tool_data.get('complexity', 0)
+                                    signal_id = getattr(self.game_controller.focused_signal, 'id', 'Unknown')
+                                    
+                                    self.aethertap_layout.log_pane.add_log_entry(
+                                        content=f"Started {tool_name} analysis on signal {signal_id}. Complexity: {complexity}/5",
+                                        category='analysis',
+                                        title=f"Analysis Started: {tool_name}",
+                                        tags=['analysis', 'start', tool_name, f'complexity_{complexity}'],
+                                        signal_refs=[signal_id]
+                                    )
+                                    
+                                    self.aethertap_layout.log_pane.add_log_entry(f"🛠️ Started {tool_name} analysis!")
+                                else:
+                                    # Show tool selection interface
+                                    self.aethertap_layout.decoder_pane._display_tool_selection()
+                                    self.aethertap_layout.log_pane.add_log_entry(f"🛠️ Decoder toolkit ready - select analysis tool!")
+                                    self.aethertap_layout.log_pane.add_log_entry(f"💡 Try: ANALYZE pattern_recognition, ANALYZE cryptographic, etc.")
+                        else:
+                            self.aethertap_layout.log_pane.add_log_entry(f"⚠️ No signal focused. Use FOCUS SIG_X first!")
                         
+                    elif command_name == 'advance' and len(parts) == 1:
+                        # Advance current analysis stage
+                        if self.aethertap_layout.decoder_pane and self.aethertap_layout.decoder_pane.current_tool:
+                            prev_stage = self.aethertap_layout.decoder_pane.analysis_stage
+                            self.aethertap_layout.decoder_pane.advance_analysis()
+                            new_stage = self.aethertap_layout.decoder_pane.analysis_stage
+                            max_stages = self.aethertap_layout.decoder_pane.max_stages
+                            tool_name = self.aethertap_layout.decoder_pane.current_tool
+                            validation_status = self.aethertap_layout.decoder_pane.validation_status
+                            
+                            # Auto-log analysis progress
+                            if validation_status == "completed":
+                                self.aethertap_layout.log_pane.add_log_entry(
+                                    content=f"Analysis completed using {tool_name} tool. All {max_stages} stages processed successfully.",
+                                    category='analysis',
+                                    title=f"Analysis Complete: {tool_name}",
+                                    tags=['analysis', 'complete', tool_name, 'success']
+                                )
+                                self.aethertap_layout.log_pane.add_log_entry(f"✅ Analysis Complete! Results available in decoder pane.")
+                            else:
+                                stage_names = self.aethertap_layout.decoder_pane.analysis_tools[tool_name]['stages']
+                                current_stage_name = stage_names[new_stage-1] if new_stage <= len(stage_names) else 'completion'
+                                
+                                self.aethertap_layout.log_pane.add_log_entry(
+                                    content=f"Advanced {tool_name} analysis to stage {new_stage}: {current_stage_name}",
+                                    category='analysis',
+                                    title=f"Analysis Stage {new_stage}: {current_stage_name}",
+                                    tags=['analysis', 'progress', tool_name, current_stage_name]
+                                )
+                                self.aethertap_layout.log_pane.add_log_entry(f"⚙️ Advanced to stage {new_stage}/{max_stages}: {current_stage_name}")
+                        else:
+                            self.aethertap_layout.log_pane.add_log_entry(f"⚠️ No analysis in progress. Start with ANALYZE <tool_name>")
+                    
+                    elif command_name == 'tools':
+                        # Show decoder tool selection
+                        if self.aethertap_layout.decoder_pane:
+                            self.aethertap_layout.decoder_pane._display_tool_selection()
+                            self.aethertap_layout.log_pane.add_log_entry(f"🛠️ Analysis tools displayed")
+                        
+                    elif command_name == 'reset' and len(parts) == 1:
+                        # Reset current analysis
+                        if self.aethertap_layout.decoder_pane:
+                            prev_tool = self.aethertap_layout.decoder_pane.current_tool
+                            prev_stage = self.aethertap_layout.decoder_pane.analysis_stage
+                            
+                            self.aethertap_layout.decoder_pane.reset_analysis()
+                            
+                            # Auto-log reset action
+                            if prev_tool:
+                                self.aethertap_layout.log_pane.add_log_entry(
+                                    content=f"Reset {prev_tool} analysis from stage {prev_stage}. Ready for new analysis.",
+                                    category='system',
+                                    title=f"Analysis Reset: {prev_tool}",
+                                    tags=['reset', 'analysis', prev_tool]
+                                )
+                            
+                            self.aethertap_layout.log_pane.add_log_entry(f"🔄 Analysis reset - decoder ready for new analysis")
+                        else:
+                            self.aethertap_layout.log_pane.add_log_entry(f"⚠️ No decoder pane available")
+                    
+                    elif command_name == 'log':
+                        # Enhanced log commands for Phase 10.5 features
+                        if len(parts) > 1:
+                            log_command = parts[1].lower()
+                            if log_command == 'search' and len(parts) > 2:
+                                query = ' '.join(parts[2:])
+                                category = 'all'
+                                if len(parts) > 3 and parts[3] in self.aethertap_layout.log_pane.log_categories:
+                                    category = parts[3]
+                                self.aethertap_layout.log_pane.set_view('search', query=query, category=category)
+                                self.aethertap_layout.log_pane.add_log_entry(f"🔍 Search results for '{query}' in {category}")
+                            elif log_command == 'category' and len(parts) > 2:
+                                category = parts[2].lower()
+                                self.aethertap_layout.log_pane.set_view('category', category=category)
+                                self.aethertap_layout.log_pane.add_log_entry(f"📂 Showing {category} entries")
+                            elif log_command == 'bookmarks':
+                                self.aethertap_layout.log_pane.set_view('bookmarks')
+                                self.aethertap_layout.log_pane.add_log_entry(f"🔖 Showing bookmarked entries")
+                            elif log_command == 'timeline':
+                                self.aethertap_layout.log_pane.set_view('timeline')
+                                self.aethertap_layout.log_pane.add_log_entry(f"⏰ Showing discovery timeline")
+                            elif log_command == 'stats':
+                                self.aethertap_layout.log_pane.set_view('statistics')
+                                self.aethertap_layout.log_pane.add_log_entry(f"📊 Showing database statistics")
+                            else:
+                                self.aethertap_layout.log_pane.add_log_entry(f"⚠️ Unknown log command: {log_command}")
+                        else:
+                            self.aethertap_layout.log_pane.set_view('recent')
+                            self.aethertap_layout.log_pane.add_log_entry(f"📚 Showing recent log entries")
+                        
+                    elif command_name == 'bookmark' and len(parts) >= 2:
+                        # Add bookmark to log entry
+                        entry_id = parts[1].upper()
+                        note = ' '.join(parts[2:]) if len(parts) > 2 else ""
+                        self.aethertap_layout.log_pane.add_bookmark(entry_id, note)
+                        self.aethertap_layout.log_pane.add_log_entry(f"🔖 Bookmarked {entry_id}")
+                        
+                    elif command_name == 'export' and len(parts) > 1:
+                        # Export log data
+                        format_type = parts[1].lower()
+                        try:
+                            if hasattr(self.aethertap_layout.log_pane, 'export_data'):
+                                exported_data = self.aethertap_layout.log_pane.export_data(format_type)
+                                # Save to file
+                                filename = f"signal_cartographer_export_{format_type}.txt"
+                                with open(filename, 'w', encoding='utf-8') as f:
+                                    f.write(exported_data)
+                                self.aethertap_layout.log_pane.add_log_entry(f"💾 Exported to {filename} ({len(exported_data)} chars)")
+                            else:
+                                self.aethertap_layout.log_pane.add_log_entry(f"❌ Export function not available")
+                        except Exception as e:
+                            self.aethertap_layout.log_pane.add_log_entry(f"❌ Export failed: {str(e)}")
+                            self.aethertap_layout.log_pane.add_log_entry(f"💡 Available formats: text, json, timeline, bookmarks")
                 else:
                     self.aethertap_layout.log_pane.add_log_entry(f"⚠️  No result returned for command: {command}")
             else:
@@ -168,7 +302,7 @@ class AetherTapScreen(Screen):
             self.aethertap_layout.log_pane.add_log_entry("")
         
         # Launch the detailed help screen
-        self.app.push_screen(HelpScreen())
+        self.app.push_screen(TutorialMenuScreen())
     
     def _clear_logs(self):
         """Clear the log pane"""
@@ -180,12 +314,12 @@ class AetherTapScreen(Screen):
         if self.aethertap_layout:
             # Show startup sequence in log
             if self.aethertap_layout.log_pane:
-                startup_messages = [
-                    "=" * 60,
-                    "  THE SIGNAL CARTOGRAPHER: ECHOES FROM THE VOID",
+                    startup_messages = [
+                        "=" * 60,
+                        "  THE SIGNAL CARTOGRAPHER: ECHOES FROM THE VOID",
                     "  AetherTap Terminal Interface v1.2 - ENHANCED",
-                    "=" * 60,
-                    "",
+                        "=" * 60,
+                        "",
                     "🔧 System Status:",
                     "✅ Quantum resonance chambers initialized",
                     "✅ Signal detection arrays calibrated",
@@ -204,10 +338,10 @@ class AetherTapScreen(Screen):
                     "",
                     "💡 Watch how all 6 panels update as you type commands!",
                     "=" * 60
-                ]
-                
-                for message in startup_messages:
-                    self.aethertap_layout.log_pane.add_log_entry(message)
+                    ]
+                    
+                    for message in startup_messages:
+                        self.aethertap_layout.log_pane.add_log_entry(message)
                 
             # Initialize spectrum pane
             if self.aethertap_layout.spectrum_pane:
@@ -295,7 +429,28 @@ The AetherTap interface has 6 main panels:
 [white]FOCUS SIG_1[/white] - Focus on the first detected signal
 [white]FOCUS SIG_2[/white] - Focus on the second detected signal
 [white]FOCUS SIG_3[/white] - Focus on the third detected signal (if available)
-[white]ANALYZE[/white] - Analyze the currently focused signal (reveals secrets!)
+
+[bold cyan]🛠️ ENHANCED ANALYSIS TOOLKIT (Phase 10.4):[/bold cyan]
+[white]ANALYZE[/white] - Show available analysis tools
+[white]ANALYZE pattern_recognition[/white] - Use Pattern Recognition Engine
+[white]ANALYZE cryptographic[/white] - Use Cryptographic Analysis Suite
+[white]ANALYZE spectral[/white] - Use Spectral Decomposition Tool
+[white]ANALYZE ascii_manipulation[/white] - Use ASCII Data Processor
+[white]ANALYZE constellation_mapping[/white] - Use Constellation Mapper
+[white]ANALYZE temporal_sequencing[/white] - Use Temporal Sequence Analyzer
+[white]ADVANCE[/white] - Advance to next analysis stage
+[white]TOOLS[/white] - Show decoder tool selection
+[white]RESET[/white] - Reset current analysis
+
+[bold cyan]📚 ENHANCED LOG & DATABASE (Phase 10.5):[/bold cyan]
+[white]LOG[/white] - Show recent log entries
+[white]LOG search <query>[/white] - Search log entries (e.g., LOG search signal)
+[white]LOG category <category>[/white] - Filter by category (discovery, analysis, etc.)
+[white]LOG bookmarks[/white] - Show bookmarked entries
+[white]LOG timeline[/white] - Show discovery timeline
+[white]LOG stats[/white] - Show database statistics
+[white]BOOKMARK <entry_id> [note][/white] - Bookmark a log entry
+[white]EXPORT <format>[/white] - Export data (text, json, timeline, bookmarks)
 
 [bold cyan]📋 SYSTEM COMMANDS:[/bold cyan]
 [white]STATUS[/white] - Show current system status and focused signal
@@ -334,25 +489,54 @@ Type: [white]FOCUS SIG_1[/white]
 
 [bold cyan]Step 3: Analyze the Signal[/bold cyan]
 Type: [white]ANALYZE[/white]
-- This reveals hidden information about the focused signal
-- Results appear in the Decoder & Analysis panel
-- You might discover signal origins, purposes, or messages
+- This shows the enhanced analysis toolkit with 6 specialized tools
+- Choose a tool: [white]ANALYZE pattern_recognition[/white] or [white]ANALYZE cryptographic[/white]
+- Use [white]ADVANCE[/white] to progress through analysis stages
+- Each tool has 4 stages: scan → analyze → process → complete
 
-[bold cyan]Step 4: Explore Different Sectors[/bold cyan]
+[bold cyan]Step 4: Use Enhanced Features[/bold cyan]
+[white]Multi-Stage Analysis:[/white]
+- Each analysis tool has 4 stages you advance through
+- Watch progress bars and stage indicators in the Decoder pane
+- Use [white]ADVANCE[/white] to move to the next stage
+- Use [white]RESET[/white] to start over if needed
+
+[white]Enhanced Logging:[/white]
+- All actions are automatically logged with categories
+- Use [white]LOG search signal[/white] to find signal-related entries
+- Use [white]LOG timeline[/white] to see your discovery progression
+- Bookmark important findings with [white]BOOKMARK LOG_0001[/white]
+
+[bold cyan]Step 5: Explore Different Analysis Tools[/bold cyan]
+Try different analysis approaches:
+- [white]pattern_recognition[/white] - Find recurring patterns (complexity 3/5)
+- [white]cryptographic[/white] - Decrypt encoded messages (complexity 4/5)  
+- [white]spectral[/white] - Analyze frequency components (complexity 5/5)
+- [white]ascii_manipulation[/white] - Process ASCII data (complexity 2/5)
+- [white]constellation_mapping[/white] - Map to star patterns (complexity 4/5)
+- [white]temporal_sequencing[/white] - Analyze time patterns (complexity 3/5)
+
+[bold cyan]Step 6: Explore Different Sectors[/bold cyan]
 Try: [white]SCAN BETA-2[/white] or [white]SCAN GAMMA-3[/white]
 - Each sector has different signals
 - Beta-2: Stronger, more complex signals
 - Gamma-3: Single powerful signal with deep secrets
 
-[bold cyan]Step 5: Use Hotkeys for Quick Navigation[/bold cyan]
+[bold cyan]Step 7: Use Hotkeys for Quick Navigation[/bold cyan]
 - Press F1-F5 to quickly switch between panels
 - Use this to monitor different aspects of your analysis
-
+  
 [bold green]💡 PRO TIPS[/bold green]
 
 🔹 [white]Start with ALPHA-1[/white] - It has 3 signals, perfect for learning
 🔹 [white]Always SCAN before FOCUS[/white] - You need signals to focus on
 🔹 [white]Use STATUS[/white] to check what signal you're currently focused on
+🔹 [white]Try different analysis tools[/white] - Each reveals different aspects
+🔹 [white]Use ADVANCE[/white] to progress through analysis stages step by step
+🔹 [white]Check LOG timeline[/white] to track your discovery progression
+🔹 [white]Use LOG search[/white] to find specific information quickly
+🔹 [white]Bookmark important discoveries[/white] with BOOKMARK command
+🔹 [white]Export your data[/white] with EXPORT to save findings
 🔹 [white]Try different sectors[/white] - Each has unique signal characteristics
 🔹 [white]Watch all panels[/white] - They update in real-time as you work
 🔹 [white]Use CLEAR[/white] if your log gets too cluttered
@@ -430,9 +614,51 @@ class AetherTapApp(App):
         min-height: 5;
     }
     
+    /* All panes now have scrolling capability */
     BasePane {
         border: solid #58a6ff;
         margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    /* Individual pane styling with scrolling */
+    SpectrumPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    SignalFocusPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    CartographyPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    DecoderPane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
     }
     
     #top_row, #middle_row {
@@ -448,12 +674,31 @@ class AetherTapApp(App):
     #spectrum_pane, #signal_focus_pane, #cartography_pane, #decoder_pane {
         width: 50%;
         min-width: 30;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
     }
     
     #log_pane {
         height: 60%;
         min-height: 6;
-        max-height: 15;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+        border: solid #58a6ff;
+        margin: 0;
+    }
+    
+    /* Content widgets within scrollable panes */
+    #spectrum_pane_content, #signal_focus_pane_content, #cartography_pane_content, #decoder_pane_content, #log_content {
+        background: #0d1117;
+        color: #c9d1d9;
+        padding: 1;
+        margin: 0;
+        height: auto;
+        min-height: 100%;
     }
     
     #command_input {
@@ -521,6 +766,29 @@ class AetherTapApp(App):
         background: #0d1117;
         scrollbar-background: #21262d;
         scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+        overflow-y: auto;
+    }
+    
+    /* Scrollable Pane Styling */
+    ScrollablePane {
+        border: solid #58a6ff;
+        margin: 0;
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+    }
+    
+    /* Enhanced Log Pane Scrolling */
+    LogPane {
+        overflow-y: auto;
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
+        scrollbar-size: 1 1;
+        border: solid #58a6ff;
+        margin: 0;
+        height: auto;
     }
     """
     
@@ -540,7 +808,8 @@ class AetherTapApp(App):
     def action_focus_spectrum(self):
         """Focus on the spectrum pane (F1)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.spectrum_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.spectrum_pane:
             screen.aethertap_layout.spectrum_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Main Spectrum Analyzer [MSA]")
@@ -548,7 +817,8 @@ class AetherTapApp(App):
     def action_focus_signal(self):
         """Focus on the signal focus pane (F2)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.signal_focus_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.signal_focus_pane:
             screen.aethertap_layout.signal_focus_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Signal Focus & Data [SFD]")
@@ -556,7 +826,8 @@ class AetherTapApp(App):
     def action_focus_map(self):
         """Focus on the cartography pane (F3)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.cartography_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.cartography_pane:
             screen.aethertap_layout.cartography_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Cartography & Navigation [CNP]")
@@ -564,7 +835,8 @@ class AetherTapApp(App):
     def action_focus_decoder(self):
         """Focus on the decoder pane (F4)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.decoder_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.decoder_pane:
             screen.aethertap_layout.decoder_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Decoder & Analysis Toolkit [DAT]")
@@ -572,7 +844,8 @@ class AetherTapApp(App):
     def action_focus_log(self):
         """Focus on the log pane (F5)"""
         screen = self.get_current_screen()
-        if screen and screen.aethertap_layout and screen.aethertap_layout.log_pane:
+        # Only work if we're on the main AetherTap screen
+        if isinstance(screen, AetherTapScreen) and hasattr(screen, 'aethertap_layout') and screen.aethertap_layout and screen.aethertap_layout.log_pane:
             screen.aethertap_layout.log_pane.focus()
             if screen.aethertap_layout.log_pane:
                 screen.aethertap_layout.log_pane.add_log_entry("Focused on Captain's Log & Database [CLD]")
@@ -583,4 +856,4 @@ class AetherTapApp(App):
     
     def action_help(self):
         """Show comprehensive help screen (Ctrl+H)"""
-        self.push_screen(HelpScreen())
+        self.push_screen(TutorialMenuScreen())

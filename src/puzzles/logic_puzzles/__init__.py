@@ -4,7 +4,6 @@ Exports all logic puzzle classes and supporting modules
 """
 
 from .mastermind_puzzle import MastermindPuzzle
-from .bulls_and_cows_puzzle import BullsAndCowsPuzzle
 from .sequence_deduction_puzzle import SequenceDeductionPuzzle
 from .circuit_completion_puzzle import CircuitCompletionPuzzle
 from .rule_inference_puzzle import RuleInferencePuzzle
