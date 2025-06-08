@@ -139,6 +139,10 @@ class AetherTapScreen(Screen):
                             self.aethertap_layout.signal_focus_pane.focus_signal(focused)
                         self.aethertap_layout.log_pane.add_log_entry(f"🔍 Signal focus display updated!")
                         
+                    elif command_name in ['save', 'load']:
+                        # Update save status display
+                        self._update_save_status()
+                        
                     elif command_name == 'analyze':
                         # Update decoder display with enhanced analysis using new tools
                         if self.game_controller.focused_signal:
@@ -308,6 +312,16 @@ class AetherTapScreen(Screen):
         """Clear the log pane"""
         if self.aethertap_layout and self.aethertap_layout.log_pane:
             self.aethertap_layout.log_pane.clear_logs()
+    
+    def _update_save_status(self):
+        """Update save status information in the log"""
+        if self.game_controller and hasattr(self.game_controller, 'save_system'):
+            save_info = self.game_controller.save_system.get_last_save_info()
+            if save_info:
+                if self.aethertap_layout and self.aethertap_layout.log_pane:
+                    self.aethertap_layout.log_pane.add_log_entry(
+                        f"💾 Last saved: {save_info.get('time', 'Unknown')} to {save_info.get('file', 'autosave.json')}"
+                    )
 
     async def _initialize_panes(self):
         """Initialize all panes with default content"""

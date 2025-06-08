@@ -24,10 +24,29 @@ class SignalCartographer:
         self.command_parser = CommandParser()
         self.aethertap = None
         self.running = False
-          # Game state
+        
+        # Game state
         self.current_sector = "ALPHA-1"
         self.frequency_range = (100.0, 200.0)
         self.focused_signal = None
+        
+        # Progress tracking
+        self.total_scan_count = 0
+        self.total_analysis_count = 0
+        self.discovered_sectors = []
+        self.found_signals = {}
+        self.analyzed_signals = []
+        
+        # Session tracking
+        import datetime
+        self.session_start = datetime.datetime.now().isoformat()
+        self.play_time_minutes = 0
+        self.last_command = ""
+        
+        # Initialize save system
+        from .utils.save_system import SaveSystem
+        self.save_system = SaveSystem()
+        self.save_system.set_game_state(self)
         
     def run(self):
         """Start the main game loop with textual interface"""
@@ -121,9 +140,14 @@ class SignalCartographer:
         return self.current_sector
     
     def set_current_sector(self, sector: str):
+        old_sector = self.current_sector
         self.current_sector = sector
         if self.aethertap:
             self.aethertap.update_map(sector)
+        
+        # Auto-save when changing sectors
+        if old_sector != sector and hasattr(self, 'save_system'):
+            self.save_system.auto_save()
         
     def get_frequency_range(self) -> tuple:
         return self.frequency_range
