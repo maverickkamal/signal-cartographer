@@ -12,7 +12,7 @@ from textual.binding import Binding
 from .panes import SpectrumPane, SignalFocusPane, CartographyPane, DecoderPane, LogPane
 from .input_handler import CommandInput, AetherTapInputHandler
 from .colors import AetherTapColors
-from .tutorial import TutorialMenuScreen
+# Help screen is defined in this file
 
 class AetherTapLayout(Container):
     """Main layout container for the AetherTap interface"""
@@ -302,7 +302,7 @@ class AetherTapScreen(Screen):
             self.aethertap_layout.log_pane.add_log_entry("")
         
         # Launch the detailed help screen
-        self.app.push_screen(TutorialMenuScreen())
+        self.app.push_screen(HelpScreen())
     
     def _clear_logs(self):
         """Clear the log pane"""
@@ -856,4 +856,4 @@ class AetherTapApp(App):
     
     def action_help(self):
         """Show comprehensive help screen (Ctrl+H)"""
-        self.push_screen(TutorialMenuScreen())
+        self.push_screen(HelpScreen())
