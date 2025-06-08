@@ -133,7 +133,9 @@ dmypy.json
 *.swo
 .cursor/
 TASK.md
-PHASE_9_SUMMARY.md
+PHASE_*.md
+signal_cartographer_export_timeline.txt
+saves/
 *~
 
 # OS files
@@ -148,6 +150,8 @@ Thumbs.db
 # Game specific
 *.svg
 test_*.py
+*_test.py
+*_fixes.py
 ms-vscode.powershell-*.vsix
 
 # Temporary files
