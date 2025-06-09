@@ -16,6 +16,26 @@ import asyncio
 
 from .colors import AetherTapColors
 
+# Import performance optimizations
+try:
+    from ..performance_optimizations import (
+        optimize_ascii_rendering, 
+        performance_monitor, 
+        memory_manager,
+        cleanup_old_data,
+        error_handler
+    )
+except ImportError:
+    # Fallback if performance optimizations aren't available
+    def optimize_ascii_rendering(func):
+        return func
+    def performance_monitor(func):
+        return func
+    memory_manager = None
+    def cleanup_old_data(*args, **kwargs):
+        return 0
+    error_handler = None
+
 class BasePane(ScrollableContainer):
     """Base class for all AetherTap panes - now scrollable"""
     
@@ -147,54 +167,79 @@ class SpectrumPane(BasePane):
     
     def _generate_enhanced_spectrum(self) -> List[str]:
         """Generate enhanced ASCII art spectrum with animations and noise"""
+        # Performance optimization: Limit update frequency to 20 FPS
+        current_time = time.time()
+        if hasattr(self, '_last_render_time') and current_time - self._last_render_time < 0.05:
+            if hasattr(self, '_cached_spectrum'):
+                return self._cached_spectrum
+        
         lines = []
         width = 64
         height = 12
         
         if not self.signals:
-            return self._generate_no_signal_display(width)
+            result = self._generate_no_signal_display(width)
+            self._cached_spectrum = result
+            self._last_render_time = current_time
+            return result
         
-        # Enhanced header with comprehensive information
-        lines.append(f"[bold yellow]Frequency Range:[/bold yellow] {self.frequency_range[0]:.1f}-{self.frequency_range[1]:.1f} MHz")
-        lines.append(f"[dim]Noise Floor:[/dim] {self.noise_level:.3f} | [dim]Sensitivity:[/dim] High | [dim]Bandwidth:[/dim] {self.frequency_range[1]-self.frequency_range[0]:.1f} MHz")
-        lines.append("[cyan]" + "█" * width + "[/cyan]")
-        
-        # Generate spectrum visualization with enhanced graphics
-        spectrum_data = self._calculate_spectrum_data(width, height)
-        
-        for row in range(height):
-            line = ""
-            row_intensity = (height - row) / height  # Higher rows = higher intensity
+        try:
+            # Enhanced header with comprehensive information
+            lines.append(f"[bold yellow]Frequency Range:[/bold yellow] {self.frequency_range[0]:.1f}-{self.frequency_range[1]:.1f} MHz")
+            lines.append(f"[dim]Noise Floor:[/dim] {self.noise_level:.3f} | [dim]Sensitivity:[/dim] High | [dim]Bandwidth:[/dim] {self.frequency_range[1]-self.frequency_range[0]:.1f} MHz")
+            lines.append("[cyan]" + "█" * width + "[/cyan]")
             
-            for col in range(width):
-                intensity = spectrum_data[col]
-                char, color = self._get_spectrum_char(intensity, row_intensity)
-                if color:
-                    line += f"[{color}]{char}[/{color}]"
-                else:
-                    line += char
+            # Generate spectrum visualization with enhanced graphics
+            spectrum_data = self._calculate_spectrum_data(width, height)
             
-            lines.append(line)
-        
-        # Enhanced footer with signal information
-        lines.append("[cyan]" + "█" * width + "[/cyan]")
-        lines.append(f"[bold green]Active Signals:[/bold green] {len(self.signals)}")
-        
-        # Signal details bar
-        signal_info = []
-        for i, signal in enumerate(self.signals[:3]):  # Show first 3 signals
-            signal_id = getattr(signal, 'id', f'SIG_{i+1}')
-            freq = getattr(signal, 'frequency', 0)
-            strength = getattr(signal, 'strength', 0)
-            signal_info.append(f"[yellow]{signal_id}[/yellow]:{freq:.1f}MHz([white]{strength:.2f}[/white])")
-        
-        if signal_info:
-            lines.append(" | ".join(signal_info))
-        
-        # Real-time status indicators
-        lines.append(f"[dim]Frame:[/dim] {self.animation_frame} | [dim]Last Update:[/dim] {time.time() - self.last_update:.1f}s ago")
-        
-        return lines
+            for row in range(height):
+                line = ""
+                row_intensity = (height - row) / height  # Higher rows = higher intensity
+                
+                for col in range(width):
+                    intensity = spectrum_data[col]
+                    char, color = self._get_spectrum_char(intensity, row_intensity)
+                    if color:
+                        line += f"[{color}]{char}[/{color}]"
+                    else:
+                        line += char
+                
+                lines.append(line)
+            
+            # Enhanced footer with signal information
+            lines.append("[cyan]" + "█" * width + "[/cyan]")
+            lines.append(f"[bold green]Active Signals:[/bold green] {len(self.signals)}")
+            
+            # Signal details bar
+            signal_info = []
+            for i, signal in enumerate(self.signals[:3]):  # Show first 3 signals
+                signal_id = getattr(signal, 'id', f'SIG_{i+1}')
+                freq = getattr(signal, 'frequency', 0)
+                strength = getattr(signal, 'strength', 0)
+                signal_info.append(f"[yellow]{signal_id}[/yellow]:{freq:.1f}MHz([white]{strength:.2f}[/white])")
+            
+            if signal_info:
+                lines.append(" | ".join(signal_info))
+            
+            # Real-time status indicators
+            lines.append(f"[dim]Frame:[/dim] {self.animation_frame} | [dim]Last Update:[/dim] {time.time() - self.last_update:.1f}s ago")
+            
+            # Cache the result for performance
+            self._cached_spectrum = lines
+            self._last_render_time = current_time
+            
+            return lines
+            
+        except Exception as e:
+            # Graceful error handling
+            error_lines = [
+                f"[red]Spectrum rendering error:[/red] {str(e)}",
+                "[yellow]Falling back to simplified display...[/yellow]",
+                f"[dim]Signals detected:[/dim] {len(self.signals)}",
+                "[dim]Use SCAN command to refresh[/dim]"
+            ]
+            self._cached_spectrum = error_lines
+            return error_lines
     
     def _calculate_spectrum_data(self, width: int, height: int) -> List[float]:
         """Calculate spectrum intensity data for enhanced visualization with animation"""
@@ -305,6 +350,8 @@ class SpectrumPane(BasePane):
         lines.append("  [cyan]ALPHA-1[/cyan] - Training sector (3 weak signals)")
         lines.append("  [cyan]BETA-2[/cyan] - Standard sector (2 medium signals)")
         lines.append("  [cyan]GAMMA-3[/cyan] - Deep space sector (1 strong signal)")
+        lines.append("  [cyan]DELTA-4[/cyan] - Anomaly field (2 advanced signals) 🆕")
+        lines.append("  [cyan]EPSILON-5[/cyan] - Singularity core (1 expert signal) 🆕")
         lines.append("")
         lines.append("[dim]Example:[/dim] Type 'SCAN BETA-2' to scan a different sector")
         lines.append(f"[dim]Animation Frame:[/dim] {self.animation_frame} | [dim]Noise Samples:[/dim] {len(self.noise_pattern)}")
@@ -321,14 +368,22 @@ class SignalFocusPane(BasePane):
         self.analysis_frame = 0
         self.last_analysis_time = time.time()
         
-        # Signal classification systems
+        # Signal classification systems (updated for content expansion)
         self.modulation_types = {
             'AM': {'name': 'Amplitude Modulation', 'complexity': 1},
             'FM': {'name': 'Frequency Modulation', 'complexity': 2}, 
             'PSK': {'name': 'Phase Shift Keying', 'complexity': 3},
             'QAM': {'name': 'Quadrature Amplitude', 'complexity': 4},
             'Pulsed': {'name': 'Pulse Modulated', 'complexity': 2},
-            'Pulsed-Echo': {'name': 'Echo Pulse System', 'complexity': 5},
+            'Pulsed-Echo': {'name': 'Echo Pulse System', 'complexity': 2},
+            'Phase-Shifted': {'name': 'Phase Shifted Signal', 'complexity': 3},
+            'Bio-Resonant': {'name': 'Biological Resonance', 'complexity': 4},
+            'Fragmented-Stream': {'name': 'Fragmented Data Stream', 'complexity': 3},
+            'Quantum-Entangled': {'name': 'Quantum Entangled Signal', 'complexity': 5},
+            'Whisper-Code': {'name': 'Whisper Code Protocol', 'complexity': 4},
+            'Bio-Neural': {'name': 'Bio-Neural Patterns', 'complexity': 6},
+            'Quantum-Echo': {'name': 'Quantum Echo Resonance', 'complexity': 7},
+            'Singularity-Resonance': {'name': 'Singularity Resonance', 'complexity': 9},
             'Unknown': {'name': 'Unclassified Pattern', 'complexity': 1}
         }
         
@@ -433,7 +488,7 @@ class SignalFocusPane(BasePane):
         
         lines.append(f"[yellow]Band Class:[/yellow] {band_class}")
         lines.append(f"[yellow]Power Level:[/yellow] {power_level}")
-        lines.append(f"[yellow]Complexity:[/yellow] {'●' * complexity}{'○' * (5-complexity)} ({complexity}/5)")
+        lines.append(f"[yellow]Complexity:[/yellow] {'●' * complexity}{'○' * (5-complexity)} ({complexity}/9)")
         
         # Enhanced ASCII signal signature based on modulation type
         lines.append("")
@@ -1157,11 +1212,11 @@ class DecoderPane(BasePane):
             name = tool_data['name']
             desc = tool_data['description']
             complexity = tool_data['complexity']
-            complexity_bar = "●" * complexity + "○" * (5 - complexity)
+            complexity_bar = "●" * complexity + "○" * (9 - complexity)
             
             lines.append(f"[white]{i}.[/white] {icon} [yellow]{name}[/yellow]")
             lines.append(f"   {desc}")
-            lines.append(f"   Complexity: {complexity_bar} ({complexity}/5)")
+            lines.append(f"   Complexity: {complexity_bar} ({complexity}/9)")
             lines.append("")
         
         lines.append("[cyan]═══ TOOL SELECTION ═══[/cyan]")
@@ -1757,38 +1812,129 @@ class LogPane(ScrollableContainer):
         return matching_entries
     
     def set_view(self, view_type: str, **kwargs):
-        """Set the current view mode"""
-        self.current_view = view_type
+        """Set the current view type for the log pane"""
+        valid_views = ['recent', 'category', 'bookmarks', 'timeline', 'search', 'statistics', 'progression']
         
-        if view_type == "search":
-            query = kwargs.get('query', '')
-            category = kwargs.get('category', 'all')
-            self.search_logs(query, category)
-        elif view_type == "category":
-            self.category_filter = kwargs.get('category', 'all')
-        
-        self._display_current_view()
+        if view_type in valid_views:
+            self.current_view = view_type
+            
+            # Store any additional parameters
+            if view_type == 'search':
+                self.search_filter = kwargs.get('query', '')
+                self.category_filter = kwargs.get('category', 'all')
+            elif view_type == 'category':
+                self.category_filter = kwargs.get('category', 'all')
+            
+            self._display_current_view()
     
     def _display_current_view(self):
-        """Display content based on current view mode with auto-scroll"""
-        if self.current_view == "recent":
+        """Display content based on current view type"""
+        if self.current_view == 'recent':
             self._display_recent_entries()
-        elif self.current_view == "search":
-            self._display_search_results()
-        elif self.current_view == "category":
+        elif self.current_view == 'category':
             self._display_category_view()
-        elif self.current_view == "bookmarks":
+        elif self.current_view == 'bookmarks':
             self._display_bookmarks()
-        elif self.current_view == "timeline":
+        elif self.current_view == 'timeline':
             self._display_timeline()
-        elif self.current_view == "statistics":
+        elif self.current_view == 'search':
+            self._display_search_results()
+        elif self.current_view == 'statistics':
             self._display_statistics()
+        elif self.current_view == 'progression':
+            self._display_progression()
         else:
             self._display_recent_entries()
+    
+    def _display_progression(self):
+        """Display progression information in the log pane"""
+        lines = []
         
-        # Ensure auto-scroll to bottom for new content
-        if self.auto_scroll:
-            self.call_after_refresh(self._scroll_to_bottom)
+        # Try to get progression data from the game
+        game_state = None
+        try:
+            # This is a bit hacky, but we need to access the game state
+            # In a real implementation, this would be passed more cleanly
+            from ..game_core import SignalCartographer
+            import inspect
+            
+            # Find the game state in the call stack (hacky but works)
+            for frame_info in inspect.stack():
+                frame_locals = frame_info.frame.f_locals
+                if 'self' in frame_locals and hasattr(frame_locals['self'], 'progression'):
+                    game_state = frame_locals['self']
+                    break
+        except:
+            pass
+        
+        if game_state and hasattr(game_state, 'progression'):
+            progression = game_state.progression
+            
+            lines.append("[bold cyan]🎯 PROGRESSION DASHBOARD[/bold cyan]")
+            lines.append("")
+            
+            # Analysis Points
+            lines.append(f"[yellow]Analysis Points:[/yellow] {progression.analysis_points}")
+            lines.append("")
+            
+            # Available Upgrades
+            available_upgrades = progression.get_available_upgrades()
+            if available_upgrades:
+                lines.append("[green]🛠️ Available Upgrades:[/green]")
+                for upgrade in available_upgrades:
+                    lines.append(f"  {upgrade.icon} [bold]{upgrade.name}[/bold] (Cost: {upgrade.cost})")
+                    lines.append(f"    {upgrade.description}")
+                lines.append("    [dim]Use: UPGRADES BUY <upgrade_name>[/dim]")
+                lines.append("")
+            
+            # Purchased Upgrades
+            purchased_upgrades = progression.get_purchased_upgrades()
+            if purchased_upgrades:
+                lines.append("[blue]✅ Active Upgrades:[/blue]")
+                for upgrade in purchased_upgrades:
+                    lines.append(f"  {upgrade.icon} [bold]{upgrade.name}[/bold] - ACTIVE")
+                lines.append("")
+            
+            # Recent Achievements
+            unlocked_achievements = progression.get_unlocked_achievements()
+            if unlocked_achievements:
+                lines.append("[magenta]🏆 Recent Achievements:[/magenta]")
+                # Show last 3 achievements
+                for achievement in unlocked_achievements[-3:]:
+                    lines.append(f"  {achievement.icon} [bold]{achievement.name}[/bold]")
+                    lines.append(f"    {achievement.description}")
+                if len(unlocked_achievements) > 3:
+                    lines.append(f"    [dim]... and {len(unlocked_achievements) - 3} more[/dim]")
+                lines.append("    [dim]Use: ACHIEVEMENTS for full list[/dim]")
+                lines.append("")
+            
+            # Progress on next achievements
+            lines.append("[yellow]📊 Progress Tracking:[/yellow]")
+            progress_shown = 0
+            for achievement in progression.achievements.values():
+                if not achievement.unlocked and not achievement.hidden and progress_shown < 3:
+                    progress_pct = (achievement.progress / achievement.target) * 100
+                    progress_bar = self._create_progress_bar(progress_pct / 100.0, 20)
+                    lines.append(f"  {achievement.icon} {achievement.name}")
+                    lines.append(f"    {progress_bar} {achievement.progress}/{achievement.target}")
+                    progress_shown += 1
+            
+            if progress_shown == 0:
+                lines.append("  [dim]All visible achievements completed![/dim]")
+            
+            lines.append("")
+            lines.append("[dim]Use F5 to cycle log views | Use PROGRESS for detailed stats[/dim]")
+            
+        else:
+            lines.append("[red]Progression system not available[/red]")
+        
+        self.update_content(lines)
+    
+    def _create_progress_bar(self, progress: float, width: int = 20) -> str:
+        """Create a simple progress bar"""
+        filled = int(progress * width)
+        empty = width - filled
+        return f"[green]{'█' * filled}[/green][dim]{'░' * empty}[/dim]"
     
     def _display_recent_entries(self):
         """Display recent log entries with permanent content at top, new entries at bottom"""
