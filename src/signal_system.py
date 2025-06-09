@@ -70,17 +70,51 @@ class SignalDetector:
                     'modulation': 'Whisper-Code',
                     'signature': 'void_murmur'
                 }
+            ],
+            # 🔴 NEW: DELTA-4 SECTOR - Hard difficulty with new signal types
+            'DELTA-4': [
+                {
+                    'base_frequency': 134.2,
+                    'strength': 0.5,
+                    'modulation': 'Bio-Neural',
+                    'signature': 'synaptic_cascade'
+                },
+                {
+                    'base_frequency': 198.7,
+                    'strength': 0.7,
+                    'modulation': 'Quantum-Echo',
+                    'signature': 'dimensional_rift'
+                }
+            ],
+            # 🟣 NEW: EPSILON-5 SECTOR - Expert difficulty endgame challenge
+            'EPSILON-5': [
+                {
+                    'base_frequency': 175.0,
+                    'strength': 1.0,
+                    'modulation': 'Singularity-Resonance',
+                    'signature': 'apex_signal'
+                }
             ]
         }
         
-        # Modulation types and their characteristics
+        # Modulation types and their characteristics (expanded with new signal types)
         self.modulation_types = {
-            'Pulsed-Echo': {'stability': 0.8, 'complexity': 2},
-            'Phase-Shifted': {'stability': 0.6, 'complexity': 3},
-            'Bio-Resonant': {'stability': 0.9, 'complexity': 4},
-            'Fragmented-Stream': {'stability': 0.4, 'complexity': 3},
-            'Quantum-Entangled': {'stability': 0.7, 'complexity': 5},
-            'Whisper-Code': {'stability': 0.5, 'complexity': 4}
+            # Original signal types
+            'Pulsed-Echo': {'stability': 0.8, 'complexity': 2, 'difficulty': 'Easy'},
+            'Phase-Shifted': {'stability': 0.6, 'complexity': 3, 'difficulty': 'Easy'},
+            'Bio-Resonant': {'stability': 0.9, 'complexity': 4, 'difficulty': 'Medium'},
+            'Fragmented-Stream': {'stability': 0.4, 'complexity': 3, 'difficulty': 'Medium'},
+            'Quantum-Entangled': {'stability': 0.7, 'complexity': 5, 'difficulty': 'Medium'},
+            'Whisper-Code': {'stability': 0.5, 'complexity': 4, 'difficulty': 'Hard'},
+            
+            # NEW: Advanced Bio-Neural signals (living organism signatures)
+            'Bio-Neural': {'stability': 0.6, 'complexity': 6, 'difficulty': 'Hard'},
+            
+            # NEW: Quantum-Echo signals (dimensional interference)  
+            'Quantum-Echo': {'stability': 0.4, 'complexity': 7, 'difficulty': 'Hard'},
+            
+            # NEW: Endgame singularity signals
+            'Singularity-Resonance': {'stability': 0.9, 'complexity': 9, 'difficulty': 'Expert'}
         }
     
     def scan_sector(self, sector: str, frequency_range: tuple = (100.0, 200.0)) -> List[Signal]:
