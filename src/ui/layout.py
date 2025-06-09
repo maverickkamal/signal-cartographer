@@ -130,7 +130,15 @@ class AetherTapScreen(Screen):
                             self.aethertap_layout.spectrum_pane.update_spectrum(
                                 signals, self.game_controller.frequency_range
                             )
+                        
+                        # Update cartography display with new sector and signals
+                        if self.aethertap_layout.cartography_pane:
+                            self.aethertap_layout.cartography_pane.update_map(
+                                self.game_controller.current_sector, signals=signals
+                            )
+                        
                         self.aethertap_layout.log_pane.add_log_entry(f"📊 Spectrum display updated!")
+                        self.aethertap_layout.log_pane.add_log_entry(f"🗺️ Cartography updated for sector {self.game_controller.current_sector}!")
                         
                     elif command_name == 'focus':
                         # Update signal focus display
@@ -438,6 +446,8 @@ The AetherTap interface has 6 main panels:
 [white]SCAN ALPHA-1[/white] - Scan Alpha-1 sector (3 signals - good for beginners)
 [white]SCAN BETA-2[/white] - Scan Beta-2 sector (2 stronger signals)
 [white]SCAN GAMMA-3[/white] - Scan Gamma-3 sector (1 powerful signal)
+[white]SCAN DELTA-4[/white] - Scan Delta-4 sector (2 advanced signals - NEW!)
+[white]SCAN EPSILON-5[/white] - Scan Epsilon-5 sector (1 expert signal - NEW!)
 
 [bold cyan]🔍 SIGNAL ANALYSIS:[/bold cyan]
 [white]FOCUS SIG_1[/white] - Focus on the first detected signal
@@ -530,11 +540,17 @@ Try different analysis approaches:
 - [white]constellation_mapping[/white] - Map to star patterns (complexity 4/5)
 - [white]temporal_sequencing[/white] - Analyze time patterns (complexity 3/5)
 
-[bold cyan]Step 6: Explore Different Sectors[/bold cyan]
-Try: [white]SCAN BETA-2[/white] or [white]SCAN GAMMA-3[/white]
-- Each sector has different signals
-- Beta-2: Stronger, more complex signals
-- Gamma-3: Single powerful signal with deep secrets
+[bold cyan]Step 6: Explore Different Sectors (5-Tier Difficulty Progression)[/bold cyan]
+🟢 [white]SCAN ALPHA-1[/white] - Training Zone (3 signals, Beginner difficulty)
+🟡 [white]SCAN BETA-2[/white] - Exploration Zone (2 signals, Easy difficulty)
+🟠 [white]SCAN GAMMA-3[/white] - Deep Space (1 signal, Medium difficulty) 
+🔴 [white]SCAN DELTA-4[/white] - Anomaly Field (2 signals, Hard difficulty) - NEW!
+🟣 [white]SCAN EPSILON-5[/white] - Singularity Core (1 signal, Expert difficulty) - NEW!
+
+[bold yellow]🚀 NEW SIGNAL TYPES:[/bold yellow]
+- [white]Bio-Neural[/white] - Complex neural patterns from collective consciousness
+- [white]Quantum-Echo[/white] - Dimensional interference from parallel realities
+- [white]Singularity-Resonance[/white] - Immense power from gravitational singularity
 
 [bold cyan]Step 7: Use Hotkeys for Quick Navigation[/bold cyan]
 - Press F1-F5 to quickly switch between panels
