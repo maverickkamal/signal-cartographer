@@ -83,12 +83,12 @@ class AetherTapTextual:
         if 'signal_focus' in panes and panes['signal_focus']:
             panes['signal_focus'].focus_signal(signal)
     
-    def update_map(self, sector: str, locations: Dict[str, Any] = None):
+    def update_map(self, sector: str, locations: Dict[str, Any] = None, signals: List[Any] = None):
         """Update the cartography display"""
         self.current_sector = sector
         panes = self.get_panes()
         if 'cartography' in panes and panes['cartography']:
-            panes['cartography'].update_map(sector, locations)
+            panes['cartography'].update_map(sector, locations, signals)
     
     def start_analysis(self, tool_name: str, signal: Any = None):
         """Start analysis in the decoder pane"""
