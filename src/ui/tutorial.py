@@ -344,13 +344,16 @@ The command input box (purple-bordered box at bottom-right) supports:
 [bold cyan]🔍 Scanning & Detection Commands:[/bold cyan]
 
 [bold white]SCAN[/bold white] - Scan current sector (defaults to ALPHA-1)
-[bold white]SCAN ALPHA-1[/bold white] - Scan Alpha-1 sector (beginner, 3 signals)
-[bold white]SCAN ALPHA-2[/bold white] - Scan Alpha-2 sector (different signal types)
-[bold white]SCAN BETA-1[/bold white] - Scan Beta-1 sector (intermediate, 2 signals)
-[bold white]SCAN BETA-2[/bold white] - Scan Beta-2 sector (stronger signals)
-[bold white]SCAN GAMMA-1[/bold white] - Scan Gamma-1 sector (advanced, 1 powerful signal)
-[bold white]SCAN GAMMA-2[/bold white] - Scan Gamma-2 sector (expert level)
-[bold white]SCAN GAMMA-3[/bold white] - Scan Gamma-3 sector (master level)
+[bold white]SCAN ALPHA-1[/bold white] - Training Zone (3 signals, Beginner difficulty)
+[bold white]SCAN BETA-2[/bold white] - Exploration Zone (2 signals, Easy difficulty)
+[bold white]SCAN GAMMA-3[/bold white] - Deep Space (1 signal, Medium difficulty)
+[bold white]SCAN DELTA-4[/bold white] - Anomaly Field (2 signals, Hard difficulty) 🆕
+[bold white]SCAN EPSILON-5[/bold white] - Singularity Core (1 signal, Expert difficulty) 🆕
+
+[bold green]🆕 NEW ADVANCED SIGNAL TYPES:[/bold green]
+• [bold white]Bio-Neural[/bold white] - Complex neural patterns from collective consciousness
+• [bold white]Quantum-Echo[/bold white] - Dimensional interference from parallel realities  
+• [bold white]Singularity-Resonance[/bold white] - Immense power from gravitational singularity
 
 [bold cyan]🎯 Signal Focusing Commands:[/bold cyan]
 
