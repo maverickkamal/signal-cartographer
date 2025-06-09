@@ -10,6 +10,7 @@ from typing import Optional
 from .aethertap_textual import AetherTapTextual
 from .signal_system import SignalDetector
 from .command_parser import CommandParser
+from .progression_system import ProgressionSystem
 
 
 class SignalCartographer:
@@ -25,12 +26,15 @@ class SignalCartographer:
         self.aethertap = None
         self.running = False
         
+        # Initialize progression system
+        self.progression = ProgressionSystem()
+        
         # Game state
         self.current_sector = "ALPHA-1"
         self.frequency_range = (100.0, 200.0)
         self.focused_signal = None
         
-        # Progress tracking
+        # Progress tracking (legacy - now handled by progression system)
         self.total_scan_count = 0
         self.total_analysis_count = 0
         self.discovered_sectors = []
@@ -64,6 +68,7 @@ class SignalCartographer:
             print(f"Interface error: {e}")
             print("Falling back to text mode...")
             self._run_text_mode()
+            
     async def run_async(self):
         """Run the game asynchronously"""
         try:
@@ -92,6 +97,65 @@ class SignalCartographer:
             if self.aethertap:
                 self.aethertap.show_error(error_msg)
             return error_msg
+    
+    # Progression system integration methods
+    def on_scan_completed(self, sector: str, signals_found: int):
+        """Called when a scan is completed"""
+        self.progression.increment_stat('total_scans')
+        self.progression.increment_stat('signals_found', signals_found)
+        
+        # Track sector discovery
+        if sector not in self.discovered_sectors:
+            self.discovered_sectors.append(sector)
+            self.progression.update_stat('sectors_discovered', len(self.discovered_sectors))
+            
+        # Special achievement for reaching EPSILON-5
+        if sector == 'EPSILON-5':
+            self.progression._unlock_achievement('deep_space_pioneer')
+    
+    def on_signal_focused(self, signal):
+        """Called when a signal is focused"""
+        if signal and hasattr(signal, 'modulation'):
+            self.progression.update_stat('unique_signals', signal.modulation)
+    
+    def on_analysis_completed(self, signal):
+        """Called when an analysis is completed"""
+        self.progression.increment_stat('total_analyses')
+        self.progression.earn_analysis_points(1)  # 1 point per analysis
+        
+        # Track analyzed signals
+        if signal and hasattr(signal, 'id') and signal.id not in self.analyzed_signals:
+            self.analyzed_signals.append(signal.id)
+        
+        # Check for achievement unlocks
+        if self.progression.stats['total_analyses'] == 1:
+            return "🎉 Achievement Unlocked: First Contact - Analyze your first signal!"
+        elif self.progression.stats['total_analyses'] == 10:
+            return "🎉 Upgrade Available: Scanner Sensitivity unlocked!"
+        
+        return None
+    
+    def get_upgrade_effects(self) -> dict:
+        """Get current upgrade effects for game systems"""
+        effects = {
+            'signal_strength_boost': 0.0,
+            'noise_reduction': 0.0,
+            'detection_range': 0,
+            'sector_range': 0
+        }
+        
+        purchased = self.progression.get_purchased_upgrades()
+        for upgrade in purchased:
+            if upgrade.id == 'signal_amplifier':
+                effects['signal_strength_boost'] = upgrade.effect_value
+            elif upgrade.id == 'frequency_filter':
+                effects['noise_reduction'] = upgrade.effect_value
+            elif upgrade.id == 'scanner_sensitivity':
+                effects['detection_range'] = int(upgrade.effect_value)
+            elif upgrade.id == 'deep_space_antenna':
+                effects['sector_range'] = int(upgrade.effect_value)
+        
+        return effects
     
     def quit_game(self):
         """Cleanly quit the game"""
@@ -166,6 +230,9 @@ class SignalCartographer:
         self.focused_signal = signal
         if self.aethertap:
             self.aethertap.focus_signal(signal)
+        
+        # Track signal focusing for progression
+        self.on_signal_focused(signal)
 
     async def action_help(self) -> None:
         """Show help via hotkey"""
