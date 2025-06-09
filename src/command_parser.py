@@ -3,7 +3,29 @@ Command parser for the AetherTap CLI interface
 Handles parsing and executing player commands
 """
 
+import time
 from typing import Optional, Dict, Callable, Any
+
+# Performance optimization imports
+try:
+    from .performance_optimizations import (
+        performance_monitor,
+        debounce,
+        memory_manager,
+        render_cache,
+        error_handler
+    )
+    PERFORMANCE_AVAILABLE = True
+except ImportError:
+    PERFORMANCE_AVAILABLE = False
+    
+    def performance_monitor(func):
+        return func
+    
+    def debounce(wait_time):
+        def decorator(func):
+            return func
+        return decorator
 
 
 class CommandParser:
@@ -13,6 +35,7 @@ class CommandParser:
     
     def __init__(self):
         self.game_state: Optional[Any] = None
+        self.last_command_time = {}  # For command throttling
         
         # Command registry
         self.commands: Dict[str, Callable] = {
@@ -26,6 +49,10 @@ class CommandParser:
             'quit': self.cmd_quit,
             'exit': self.cmd_quit,
             'clear': self.cmd_clear,
+            'upgrades': self.cmd_upgrades,
+            'achievements': self.cmd_achievements,
+            'progress': self.cmd_progress,
+            'performance': self.cmd_performance,
         }
         
         # Command aliases
@@ -35,34 +62,68 @@ class CommandParser:
             'f': 'focus',
             'a': 'analyze',
             'q': 'quit',
+            'perf': 'performance',
         }
     
     def set_game_state(self, game_state: Any):
         """Set reference to the main game state"""
         self.game_state = game_state
     
+    @performance_monitor
     def parse_and_execute(self, command_str: str) -> str:
         """Parse a command string and execute it"""
         if not command_str.strip():
             return ""
         
-        # Split command and arguments
-        parts = command_str.strip().split()
-        cmd_name = parts[0].lower()
-        args = parts[1:]
+        # Command throttling - prevent spam
+        current_time = time.time()
+        cmd_hash = hash(command_str.strip().lower())
         
-        # Check for aliases
-        if cmd_name in self.aliases:
-            cmd_name = self.aliases[cmd_name]
+        if cmd_hash in self.last_command_time:
+            if current_time - self.last_command_time[cmd_hash] < 0.1:  # 100ms throttle
+                return "[dim]Command throttled - please wait[/dim]"
         
-        # Execute command
-        if cmd_name in self.commands:
-            try:
-                return self.commands[cmd_name](args)
-            except Exception as e:
-                return f"Command execution error: {e}"
-        else:
-            return f"Unknown command: {cmd_name}. Type HELP for available commands."
+        self.last_command_time[cmd_hash] = current_time
+        
+        try:
+            # Split command and arguments
+            parts = command_str.strip().split()
+            cmd_name = parts[0].lower()
+            args = parts[1:]
+            
+            # Check for aliases
+            if cmd_name in self.aliases:
+                cmd_name = self.aliases[cmd_name]
+            
+            # Execute command
+            if cmd_name in self.commands:
+                try:
+                    result = self.commands[cmd_name](args)
+                    
+                    # Memory management for large responses
+                    if memory_manager and len(str(result)) > 1000:
+                        memory_manager.track_object(result)
+                    
+                    return result
+                except Exception as e:
+                    if error_handler:
+                        return error_handler.handle_error(
+                            e, f"command_{cmd_name}",
+                            lambda: f"Command execution error: {e}"
+                        )
+                    else:
+                        return f"Command execution error: {e}"
+            else:
+                return f"Unknown command: {cmd_name}. Type HELP for available commands."
+                
+        except Exception as e:
+            if error_handler:
+                return error_handler.handle_error(
+                    e, "command_parsing",
+                    lambda: "Command parsing error - please try again"
+                )
+            else:
+                return "Command parsing error - please try again"
     
     def cmd_help(self, args: list) -> str:
         """Show available commands"""
@@ -78,7 +139,10 @@ class CommandParser:
                 'load': 'LOAD [filename] - Load saved game state',
                 'help': 'HELP [command] - Show help for all commands or specific command',
                 'quit': 'QUIT - Exit the AetherTap interface',
-                'clear': 'CLEAR - Clear the command log'
+                'clear': 'CLEAR - Clear the command log',
+                'upgrades': 'UPGRADES - Show or purchase upgrades',
+                'achievements': 'ACHIEVEMENTS - Show achievement progress',
+                'progress': 'PROGRESS - Show overall progression summary',
             }
             return help_text.get(cmd, f"No help available for {cmd}")
         
@@ -92,6 +156,9 @@ class CommandParser:
                 "  STATUS - Show system status\n" +
                 "  HELP [cmd] - Show help\n" +
                 "  QUIT - Exit interface\n" +
+                "  UPGRADES - Show or purchase upgrades\n" +
+                "  ACHIEVEMENTS - Show achievement progress\n" +
+                "  PROGRESS - Show overall progression summary\n" +
                 "Type HELP <command> for detailed information.")
     
     def cmd_scan(self, args: list) -> str:
@@ -106,6 +173,10 @@ class CommandParser:
         else:
             target_sector = self.game_state.get_current_sector()
         
+        # Update current sector if changed
+        if target_sector != self.game_state.get_current_sector():
+            self.game_state.set_current_sector(target_sector)
+        
         # Update scan count for progress tracking
         if not hasattr(self.game_state, 'total_scan_count'):
             self.game_state.total_scan_count = 0
@@ -116,15 +187,38 @@ class CommandParser:
         detector = SignalDetector()
         signals = detector.scan_sector(target_sector)
         
-        # Update the spectrum display
+        # Apply upgrade effects if available
+        if hasattr(self.game_state, 'get_upgrade_effects'):
+            effects = self.game_state.get_upgrade_effects()
+            # Apply signal strength boost
+            if effects['signal_strength_boost'] > 0:
+                for signal in signals:
+                    signal.strength = min(1.0, signal.strength * (1 + effects['signal_strength_boost']))
+            # Apply noise reduction (could add more noise signals without filter)
+            if effects['noise_reduction'] > 0:
+                # Remove some noise signals based on filter strength
+                signals = [s for s in signals if not (s.modulation in ['Static-Burst', 'Cosmic-Noise', 'Solar-Interference'] and effects['noise_reduction'] > 0.5)]
+        
+        # Store the scanned signals for the FOCUS command
+        if not hasattr(self.game_state, 'last_scan_signals'):
+            self.game_state.last_scan_signals = {}
+        self.game_state.last_scan_signals[target_sector] = signals
+        
+        # Update the spectrum display and cartography pane
         if hasattr(self.game_state, 'aethertap') and self.game_state.aethertap:
             self.game_state.aethertap.update_spectrum(signals)
+            # Update cartography pane with new sector and signals
+            self.game_state.aethertap.update_map(target_sector, signals=signals)
         
         # Track discovered sectors
         if not hasattr(self.game_state, 'discovered_sectors'):
             self.game_state.discovered_sectors = []
         if target_sector not in self.game_state.discovered_sectors:
             self.game_state.discovered_sectors.append(target_sector)
+        
+        # Progression tracking
+        if hasattr(self.game_state, 'on_scan_completed'):
+            self.game_state.on_scan_completed(target_sector, len(signals))
         
         if signals:
             signal_list = ", ".join([f"SIG_{i+1}" for i in range(len(signals))])
@@ -139,26 +233,37 @@ class CommandParser:
         
         signal_id = args[0].upper()
         
-        # For now, simulate focusing on a signal
+        # Try to find the real signal from the last scan
         if signal_id.startswith('SIG_'):
             try:
                 signal_num = int(signal_id[4:])  # Extract number from SIG_N
                 
-                # Create a mock signal object
-                from .signal_system import Signal
-                mock_signal = Signal(
-                    id=signal_id,
-                    frequency=100.0 + signal_num * 10.0,
-                    strength=0.5 + (signal_num % 5) * 0.1,
-                    modulation="Pulsed-Echo",
-                    sector=self.game_state.get_current_sector()
-                )
-                
-                # Update game state
-                if self.game_state:
-                    self.game_state.set_focused_signal(mock_signal)
-                
-                return f"Signal {signal_id} focused. Frequency: {mock_signal.frequency:.1f} MHz"
+                # Get the real signals from the last scan
+                current_sector = self.game_state.get_current_sector()
+                if (hasattr(self.game_state, 'last_scan_signals') and 
+                    current_sector in self.game_state.last_scan_signals):
+                    
+                    signals = self.game_state.last_scan_signals[current_sector]
+                    if 1 <= signal_num <= len(signals):
+                        # Use the real signal from the scan
+                        real_signal = signals[signal_num - 1]  # Convert to 0-indexed
+                        real_signal.id = signal_id  # Update ID to match user input
+                        
+                        # Update game state
+                        self.game_state.set_focused_signal(real_signal)
+                        
+                        # Update the focus pane if available
+                        if hasattr(self.game_state, 'aethertap') and self.game_state.aethertap:
+                            self.game_state.aethertap.focus_signal(real_signal)
+                        
+                        return (f"Signal {signal_id} focused.\n" +
+                                f"Frequency: {real_signal.frequency:.1f} MHz\n" +
+                                f"Modulation: {real_signal.modulation}\n" +
+                                f"Strength: {real_signal.strength:.2f}")
+                    else:
+                        return f"Signal {signal_id} not found. Only {len(signals)} signals detected in current scan."
+                else:
+                    return f"No scan data available for {current_sector}. Use SCAN first to detect signals."
                 
             except ValueError:
                 return f"Invalid signal ID format: {signal_id}"
@@ -192,11 +297,22 @@ class CommandParser:
                              f"Sector: {signal.sector}")
             self.game_state.aethertap.update_decoder(analysis_result)
         
-        # For now, simulate basic analysis
-        return (f"Analyzing signal {signal.id}...\n" +
-                f"Modulation type: {signal.modulation}\n" +
-                f"Signal appears to contain encoded data.\n" +
-                "Advanced decoding tools required for full analysis.")
+        # Progression tracking
+        achievement_msg = ""
+        if hasattr(self.game_state, 'on_analysis_completed'):
+            achievement_msg = self.game_state.on_analysis_completed(signal)
+        
+        # Basic analysis result
+        base_result = (f"Analyzing signal {signal.id}...\n" +
+                      f"Modulation type: {signal.modulation}\n" +
+                      f"Signal appears to contain encoded data.\n" +
+                      "Advanced decoding tools required for full analysis.")
+        
+        # Add achievement notification if earned
+        if achievement_msg:
+            base_result += f"\n\n{achievement_msg}"
+        
+        return base_result
     
     def cmd_status(self, args: list) -> str:
         """Show current system status"""
@@ -302,4 +418,177 @@ class CommandParser:
         if self.game_state and hasattr(self.game_state, 'aethertap') and self.game_state.aethertap:
             self.game_state.aethertap.log_entries = ["Command log cleared."]
             self.game_state.aethertap._update_log_pane()
-        return "Command log cleared." 
+        return "Command log cleared."
+    
+    def cmd_upgrades(self, args: list) -> str:
+        """Show or purchase upgrades"""
+        if not hasattr(self.game_state, 'progression'):
+            return "Progression system not available."
+        
+        progression = self.game_state.progression
+        
+        if not args:
+            # Show available upgrades
+            result = "=== UPGRADE SYSTEM ===\n"
+            result += f"Analysis Points: {progression.analysis_points}\n\n"
+            
+            # Available upgrades
+            available = progression.get_available_upgrades()
+            if available:
+                result += "Available Upgrades:\n"
+                for upgrade in available:
+                    result += f"  {upgrade.icon} {upgrade.name} (Cost: {upgrade.cost} points)\n"
+                    result += f"     {upgrade.description}\n"
+            else:
+                result += "No upgrades available. Complete more analyses to unlock upgrades.\n"
+            
+            # Purchased upgrades
+            purchased = progression.get_purchased_upgrades()
+            if purchased:
+                result += "\nPurchased Upgrades:\n"
+                for upgrade in purchased:
+                    result += f"  ✅ {upgrade.icon} {upgrade.name} - ACTIVE\n"
+            
+            result += f"\nUsage: UPGRADES BUY <upgrade_name>"
+            return result
+        
+        elif args[0].upper() == 'BUY' and len(args) > 1:
+            # Purchase upgrade
+            upgrade_name = '_'.join(args[1:]).lower()
+            
+            if progression.can_purchase_upgrade(upgrade_name):
+                if progression.purchase_upgrade(upgrade_name):
+                    upgrade = progression.upgrades[upgrade_name]
+                    return f"✅ Upgrade purchased: {upgrade.name}!\n{upgrade.description}"
+                else:
+                    return "❌ Failed to purchase upgrade."
+            else:
+                return "❌ Cannot purchase upgrade. Check availability and cost."
+        
+        else:
+            return "Usage: UPGRADES or UPGRADES BUY <upgrade_name>"
+    
+    def cmd_achievements(self, args: list) -> str:
+        """Show achievement progress"""
+        if not hasattr(self.game_state, 'progression'):
+            return "Progression system not available."
+        
+        progression = self.game_state.progression
+        
+        result = "=== ACHIEVEMENTS ===\n"
+        
+        # Unlocked achievements
+        unlocked = progression.get_unlocked_achievements()
+        if unlocked:
+            result += f"Unlocked ({len(unlocked)}/{len(progression.achievements)}):\n"
+            for achievement in unlocked:
+                unlock_date = achievement.unlock_date or "Unknown"
+                result += f"  🏆 {achievement.icon} {achievement.name}\n"
+                result += f"     {achievement.description}\n"
+        
+        # Progress on remaining achievements
+        result += "\nProgress:\n"
+        for achievement in progression.achievements.values():
+            if not achievement.unlocked and not achievement.hidden:
+                progress_pct = (achievement.progress / achievement.target) * 100
+                result += f"  📊 {achievement.name}: {achievement.progress}/{achievement.target} ({progress_pct:.1f}%)\n"
+        
+        return result
+    
+    def cmd_progress(self, args: list) -> str:
+        """Show overall progression summary"""
+        if not hasattr(self.game_state, 'progression'):
+            return "Progression system not available."
+        
+        summary = self.game_state.progression.get_progression_summary()
+        
+        result = "=== PROGRESSION SUMMARY ===\n"
+        result += f"Analysis Points: {summary['analysis_points']}\n"
+        result += f"Achievements: {summary['achievements_unlocked']}/{summary['total_achievements']}\n"
+        result += f"Upgrades: {summary['upgrades_purchased']}/{summary['total_upgrades']}\n\n"
+        
+        result += "Statistics:\n"
+        stats = summary['stats']
+        result += f"  Total Scans: {stats['total_scans']}\n"
+        result += f"  Total Analyses: {stats['total_analyses']}\n"
+        result += f"  Sectors Discovered: {stats['sectors_discovered']}\n"
+        result += f"  Unique Signals Found: {len(stats['unique_signals'])}\n"
+        
+        if summary['next_unlock']:
+            result += f"\nNext Achievement: {summary['next_unlock']}"
+        
+        return result
+    
+    def cmd_performance(self, args: list) -> str:
+        """Show performance statistics and controls"""
+        try:
+            from .performance_optimizations import (
+                memory_manager,
+                render_cache,
+                error_handler
+            )
+            
+            result = "=== PERFORMANCE STATISTICS ===\n"
+            
+            # Memory stats
+            if memory_manager:
+                mem_stats = memory_manager.get_memory_stats()
+                result += f"Memory - Tracked Objects: {mem_stats['tracked_objects']}\n"
+                result += f"Memory - Allocations: {mem_stats['allocation_count']}\n"
+                result += f"Memory - Last Cleanup: {mem_stats['last_cleanup']:.1f}s ago\n"
+            
+            # Cache stats
+            if render_cache:
+                cache_stats = render_cache.get_stats()
+                result += f"Cache - Size: {cache_stats['size']}/{cache_stats['max_size']}\n"
+                result += f"Cache - Hit Rate: {cache_stats['hit_rate']:.1%}\n"
+                result += f"Cache - Hits: {cache_stats['hit_count']}\n"
+            
+            # Error stats
+            if error_handler:
+                error_stats = error_handler.get_error_stats()
+                result += f"Errors - Total: {error_stats['total_errors']}\n"
+                if error_stats['error_counts']:
+                    result += "Error Types:\n"
+                    for error_type, count in error_stats['error_counts'].items():
+                        result += f"  {error_type}: {count}\n"
+            
+            # Game performance stats
+            if hasattr(self.game_state, 'total_scan_count'):
+                result += f"Game - Total Scans: {self.game_state.total_scan_count}\n"
+            
+            if hasattr(self.game_state, 'progression'):
+                stats = self.game_state.progression.get_progression_summary()['stats']
+                result += f"Game - Total Analyses: {stats['total_analyses']}\n"
+                result += f"Game - Sectors Discovered: {stats['sectors_discovered']}\n"
+            
+            # Commands
+            if args and args[0].lower() == 'cleanup':
+                # Perform manual cleanup
+                cleanup_count = 0
+                if memory_manager:
+                    cleanup_count = memory_manager.cleanup()
+                if render_cache:
+                    cache_size_before = render_cache.get_stats()['size']
+                    # Clear old cache entries
+                    for _ in range(cache_size_before // 2):
+                        render_cache._evict_oldest()
+                    cache_size_after = render_cache.get_stats()['size']
+                    result += f"\nCleanup completed. Cache reduced from {cache_size_before} to {cache_size_after} entries."
+                result += f"\nMemory cleanup freed {cleanup_count} objects."
+            
+            elif args and args[0].lower() == 'clear':
+                # Clear all caches
+                if render_cache:
+                    render_cache.clear()
+                result += "\nAll caches cleared."
+            
+            else:
+                result += "\nCommands: PERFORMANCE CLEANUP, PERFORMANCE CLEAR"
+            
+            return result
+            
+        except ImportError:
+            return "Performance monitoring not available."
+        except Exception as e:
+            return f"Performance command error: {str(e)}" 
