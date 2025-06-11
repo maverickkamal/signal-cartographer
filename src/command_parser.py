@@ -1,10 +1,12 @@
 """
 Command parser for the AetherTap CLI interface
 Handles parsing and executing player commands
+Enhanced with Day 13-14 UX improvements
 """
 
 import time
-from typing import Optional, Dict, Callable, Any
+import difflib
+from typing import Optional, Dict, Callable, Any, List
 
 # Performance optimization imports
 try:
@@ -31,11 +33,13 @@ except ImportError:
 class CommandParser:
     """
     Parses and executes commands entered in the CLI
+    Enhanced with better feedback and user experience features
     """
     
     def __init__(self):
         self.game_state: Optional[Any] = None
         self.last_command_time = {}  # For command throttling
+        self.command_history = []    # Track command history
         
         # Command registry
         self.commands: Dict[str, Callable] = {
@@ -53,6 +57,13 @@ class CommandParser:
             'achievements': self.cmd_achievements,
             'progress': self.cmd_progress,
             'performance': self.cmd_performance,
+            # Phase 11: Puzzle System Commands
+            'puzzle': self.cmd_puzzle,
+            'advance': self.cmd_advance,
+            'reset': self.cmd_reset,
+            'tools': self.cmd_tools,
+            'answer': self.cmd_answer,
+            'hint': self.cmd_hint,
         }
         
         # Command aliases
@@ -64,16 +75,76 @@ class CommandParser:
             'q': 'quit',
             'perf': 'performance',
         }
+        
+        # Enhanced command metadata for better help
+        self.command_info = {
+            'scan': {
+                'description': 'Scan for signals in current or specified sector',
+                'examples': ['SCAN', 'SCAN BETA-2', 'SCAN DELTA-4'],
+                'category': 'exploration'
+            },
+            'focus': {
+                'description': 'Focus on a specific signal for detailed analysis',
+                'examples': ['FOCUS SIG_1', 'FOCUS SIG_2'],
+                'category': 'analysis'
+            },
+            'analyze': {
+                'description': 'Analyze the currently focused signal',
+                'examples': ['ANALYZE', 'ANALYZE fourier'],
+                'category': 'analysis'
+            },
+            'help': {
+                'description': 'Show available commands and detailed help',
+                'examples': ['HELP', 'HELP SCAN'],
+                'category': 'info'
+            },
+            'upgrades': {
+                'description': 'View or purchase equipment upgrades',
+                'examples': ['UPGRADES', 'UPGRADES BUY scanner_sensitivity'],
+                'category': 'progression'
+            }
+        }
     
     def set_game_state(self, game_state: Any):
         """Set reference to the main game state"""
         self.game_state = game_state
     
+    def get_command_suggestions(self, partial_command: str) -> List[str]:
+        """Get command suggestions for autocompletion"""
+        if not partial_command:
+            return list(self.commands.keys())
+        
+        partial = partial_command.lower()
+        suggestions = []
+        
+        # Exact matches first
+        for cmd in self.commands.keys():
+            if cmd.startswith(partial):
+                suggestions.append(cmd.upper())
+        
+        # Include aliases
+        for alias, full_cmd in self.aliases.items():
+            if alias.startswith(partial):
+                suggestions.append(f"{alias.upper()} (={full_cmd.upper()})")
+        
+        # Fuzzy matches if no exact matches
+        if not suggestions:
+            close_matches = difflib.get_close_matches(partial, self.commands.keys(), n=3, cutoff=0.6)
+            suggestions = [cmd.upper() for cmd in close_matches]
+        
+        return suggestions
+    
     @performance_monitor
     def parse_and_execute(self, command_str: str) -> str:
-        """Parse a command string and execute it"""
+        """Parse a command string and execute it with enhanced feedback"""
         if not command_str.strip():
-            return ""
+            return self._format_suggestion("", "Type a command to begin", 
+                                         ["Try 'HELP' for available commands", "Start with 'SCAN' to find signals"])
+        
+        # Add to command history
+        self.command_history.append(command_str.strip())
+        if len(self.command_history) > 50:
+            self.command_history = self.command_history[-50:]
         
         # Command throttling - prevent spam
         current_time = time.time()
@@ -81,7 +152,9 @@ class CommandParser:
         
         if cmd_hash in self.last_command_time:
             if current_time - self.last_command_time[cmd_hash] < 0.1:  # 100ms throttle
-                return "[dim]Command throttled - please wait[/dim]"
+                return self._format_error("Command rate limited", 
+                                        "Too many rapid commands", 
+                                        ["Wait a moment between commands"])
         
         self.last_command_time[cmd_hash] = current_time
         
@@ -92,38 +165,146 @@ class CommandParser:
             args = parts[1:]
             
             # Check for aliases
+            original_cmd = cmd_name
             if cmd_name in self.aliases:
                 cmd_name = self.aliases[cmd_name]
+                # Show alias tip for beginners
+                if len(self.command_history) < 10:
+                    alias_tip = f"\n💡 Tip: '{original_cmd}' is short for '{cmd_name.upper()}'"
+                    result = self._execute_command(cmd_name, args)
+                    return result + alias_tip
             
             # Execute command
             if cmd_name in self.commands:
-                try:
-                    result = self.commands[cmd_name](args)
-                    
-                    # Memory management for large responses
-                    if memory_manager and len(str(result)) > 1000:
-                        memory_manager.track_object(result)
-                    
-                    return result
-                except Exception as e:
-                    if error_handler:
-                        return error_handler.handle_error(
-                            e, f"command_{cmd_name}",
-                            lambda: f"Command execution error: {e}"
-                        )
-                    else:
-                        return f"Command execution error: {e}"
+                result = self._execute_command(cmd_name, args)
+                
+                # Add contextual suggestions to successful commands
+                suggestions = self._get_contextual_suggestions(cmd_name, args)
+                if suggestions and not self._is_error_result(result):
+                    suggestion_text = f"\n[dim]💡 Next: {', '.join(suggestions)}[/dim]"
+                    return result + suggestion_text
+                
+                return result
             else:
-                return f"Unknown command: {cmd_name}. Type HELP for available commands."
+                return self._handle_unknown_command(cmd_name)
                 
         except Exception as e:
             if error_handler:
                 return error_handler.handle_error(
                     e, "command_parsing",
-                    lambda: "Command parsing error - please try again"
+                    lambda: self._format_error("Command parsing error", str(e), ["Try a simpler command"])
                 )
             else:
-                return "Command parsing error - please try again"
+                return self._format_error("Command parsing error", str(e), ["Try a simpler command"])
+    
+    def _execute_command(self, cmd_name: str, args: List[str]) -> str:
+        """Execute command with enhanced error handling"""
+        try:
+            return self.commands[cmd_name](args)
+        except Exception as e:
+            return self._format_error(f"Command '{cmd_name.upper()}' failed", 
+                                    str(e),
+                                    [f"Check syntax with 'HELP {cmd_name.upper()}'"])
+    
+    def _handle_unknown_command(self, cmd_name: str) -> str:
+        """Handle unknown commands with helpful suggestions"""
+        # Find close matches
+        all_commands = list(self.commands.keys()) + list(self.aliases.keys())
+        close_matches = difflib.get_close_matches(cmd_name, all_commands, n=3, cutoff=0.6)
+        
+        if close_matches:
+            suggestions = [f"'{match.upper()}'" for match in close_matches]
+            return self._format_error(f"Unknown command: {cmd_name.upper()}", 
+                                    "Command not recognized",
+                                    [f"Did you mean: {', '.join(suggestions)}?"])
+        else:
+            return self._format_error(f"Unknown command: {cmd_name.upper()}", 
+                                    "Command not found",
+                                    ["Type 'HELP' for available commands"])
+    
+    def _get_contextual_suggestions(self, cmd_name: str, args: List[str]) -> List[str]:
+        """Get contextual suggestions based on command and game state"""
+        suggestions = []
+        
+        if not self.game_state:
+            return suggestions
+        
+        try:
+            if cmd_name == 'scan':
+                if self._has_available_signals():
+                    suggestions.append("FOCUS SIG_1 to examine signals")
+            
+            elif cmd_name == 'focus':
+                suggestions.append("ANALYZE to decode the signal")
+            
+            elif cmd_name == 'analyze':
+                if self._can_upgrade():
+                    suggestions.append("UPGRADES to enhance equipment")
+                suggestions.append("SCAN to find more signals")
+            
+            elif cmd_name == 'help' and not args:
+                if self._is_beginner():
+                    suggestions.append("SCAN to begin exploring")
+        
+        except Exception:
+            pass  # Ignore errors in suggestion generation
+        
+        return suggestions
+    
+    def _has_available_signals(self) -> bool:
+        """Check if there are signals available to focus on"""
+        try:
+            if not hasattr(self.game_state, 'last_scan_signals'):
+                return False
+            
+            current_sector = self.game_state.get_current_sector()
+            return (current_sector in self.game_state.last_scan_signals and 
+                    len(self.game_state.last_scan_signals[current_sector]) > 0)
+        except:
+            return False
+    
+    def _can_upgrade(self) -> bool:
+        """Check if user can purchase upgrades"""
+        try:
+            if hasattr(self.game_state, 'progression'):
+                return len(self.game_state.progression.get_available_upgrades()) > 0
+        except:
+            pass
+        return False
+    
+    def _is_beginner(self) -> bool:
+        """Check if user is a beginner"""
+        return len(self.command_history) < 10
+    
+    def _is_error_result(self, result: str) -> bool:
+        """Check if result indicates an error"""
+        error_indicators = ['error', 'failed', 'not found', '❌', 'Error']
+        return any(indicator in result for indicator in error_indicators)
+    
+    def _format_error(self, title: str, detail: str, suggestions: List[str] = None) -> str:
+        """Format error message with helpful information"""
+        result = f"❌ [red]{title}[/red]"
+        if detail:
+            result += f"\n   [dim]{detail}[/dim]"
+        if suggestions:
+            result += f"\n   💡 Try: {', '.join(suggestions)}"
+        return result
+    
+    def _format_success(self, message: str, suggestions: List[str] = None) -> str:
+        """Format success message with next steps"""
+        result = f"✅ [green]{message}[/green]"
+        if suggestions:
+            result += f"\n   💡 Next: {', '.join(suggestions)}"
+        return result
+    
+    def _format_suggestion(self, title: str, detail: str, suggestions: List[str] = None) -> str:
+        """Format suggestion message"""
+        result = f"💡 [yellow]{title}[/yellow]" if title else ""
+        if detail:
+            result += f"\n   {detail}" if title else detail
+        if suggestions:
+            result += f"\n   Try: {', '.join(suggestions)}"
+        return result
     
     def cmd_help(self, args: list) -> str:
         """Show available commands"""
@@ -277,6 +458,9 @@ class CommandParser:
         
         signal = self.game_state.get_focused_signal()
         
+        # Check if specific tool is requested
+        tool_name = args[0] if args else None
+        
         # Update analysis count for progress tracking
         if not hasattr(self.game_state, 'total_analysis_count'):
             self.game_state.total_analysis_count = 0
@@ -288,25 +472,71 @@ class CommandParser:
         if signal.id not in self.game_state.analyzed_signals:
             self.game_state.analyzed_signals.append(signal.id)
         
-        # Update decoder panel if available
+        # Update decoder panel if available - with Phase 11 puzzle integration
         if hasattr(self.game_state, 'aethertap') and self.game_state.aethertap:
-            analysis_result = (f"Signal {signal.id} Analysis:\n" +
-                             f"Frequency: {signal.frequency:.1f} MHz\n" +
-                             f"Strength: {signal.strength:.2f}\n" +
-                             f"Modulation: {signal.modulation}\n" +
-                             f"Sector: {signal.sector}")
-            self.game_state.aethertap.update_decoder(analysis_result)
+            # Get decoder pane through proper path
+            panes = self.game_state.aethertap.get_panes()
+            decoder_pane = panes.get('decoder')
+            
+            if decoder_pane and tool_name:
+                # Tool-specific analysis with puzzle integration
+                available_tools = ['pattern_recognition', 'cryptographic', 'spectral', 
+                                 'ascii_manipulation', 'constellation_mapping', 'temporal_sequencing']
+                
+                if tool_name in available_tools:
+                    decoder_pane.select_tool(tool_name)
+                    decoder_pane.start_analysis(signal)
+                    
+                    # Start puzzle mode if available
+                    if hasattr(decoder_pane, 'start_puzzle_mode'):
+                        puzzle_started = decoder_pane.start_puzzle_mode()
+                        if puzzle_started:
+                            return (f"🎯 Interactive analysis started with {tool_name.replace('_', ' ').title()} tool.\n" +
+                                   f"A puzzle challenge has been generated for signal {signal.id}.\n" +
+                                   f"Use the decoder panel to solve the puzzle and complete analysis.")
+                    
+                    analysis_result = (f"🔧 Analysis started with {tool_name.replace('_', ' ').title()} tool.\n" +
+                                     f"Signal {signal.id} loaded into analysis pipeline.\n" +
+                                     f"Use ADVANCE command to progress through analysis stages.")
+                else:
+                    return (f"Unknown analysis tool: {tool_name}\n" +
+                           f"Available tools: {', '.join(available_tools)}")
+            elif decoder_pane:
+                # Basic analysis
+                analysis_result = (f"Signal {signal.id} Analysis:\n" +
+                                 f"Frequency: {signal.frequency:.1f} MHz\n" +
+                                 f"Strength: {signal.strength:.2f}\n" +
+                                 f"Modulation: {signal.modulation}\n" +
+                                 f"Sector: {signal.sector}")
+                decoder_pane.start_analysis(signal)
+            
+            # Update interface if available
+            if hasattr(self.game_state.aethertap, 'add_log_entry'):
+                if tool_name:
+                    self.game_state.aethertap.add_log_entry(analysis_result)
+                else:
+                    self.game_state.aethertap.add_log_entry(f"Basic analysis completed for signal {signal.id}")
         
         # Progression tracking
         achievement_msg = ""
         if hasattr(self.game_state, 'on_analysis_completed'):
             achievement_msg = self.game_state.on_analysis_completed(signal)
         
-        # Basic analysis result
-        base_result = (f"Analyzing signal {signal.id}...\n" +
-                      f"Modulation type: {signal.modulation}\n" +
-                      f"Signal appears to contain encoded data.\n" +
-                      "Advanced decoding tools required for full analysis.")
+        # Basic analysis result for when no specific tool is used
+        if not tool_name:
+            base_result = (f"Analyzing signal {signal.id}...\n" +
+                          f"Modulation type: {signal.modulation}\n" +
+                          f"Signal appears to contain encoded data.\n" +
+                          "Advanced decoding tools required for full analysis.\n\n" +
+                          "💡 Tip: Use 'ANALYZE <tool>' for interactive analysis:\n" +
+                          "   • ANALYZE pattern_recognition - Visual pattern puzzles\n" +
+                          "   • ANALYZE cryptographic - Cipher and code puzzles\n" +
+                          "   • ANALYZE spectral - Audio pattern challenges\n" +
+                          "   • ANALYZE constellation_mapping - Star pattern games\n" +
+                          "   • ANALYZE temporal_sequencing - Logic sequence puzzles\n" +
+                          "   • ANALYZE ascii_manipulation - Text transformation puzzles")
+        else:
+            base_result = analysis_result
         
         # Add achievement notification if earned
         if achievement_msg:
@@ -591,4 +821,137 @@ class CommandParser:
         except ImportError:
             return "Performance monitoring not available."
         except Exception as e:
-            return f"Performance command error: {str(e)}" 
+            return f"Performance command error: {str(e)}"
+    
+    # Phase 11: Puzzle System Commands
+    
+    def cmd_puzzle(self, args: list) -> str:
+        """Start puzzle mode for current analysis tool"""
+        if not self.game_state or not hasattr(self.game_state, 'aethertap') or not self.game_state.aethertap:
+            return "❌ AetherTap interface not available."
+        
+        panes = self.game_state.aethertap.get_panes()
+        decoder_pane = panes.get('decoder')
+        
+        if not decoder_pane or not hasattr(decoder_pane, 'start_puzzle_mode'):
+            return "❌ Puzzle system not available."
+        
+        if not decoder_pane.current_tool:
+            return "❌ No analysis tool selected. Use ANALYZE <tool> first."
+        
+        if decoder_pane.start_puzzle_mode():
+            return f"🎯 Puzzle mode activated for {decoder_pane.current_tool.replace('_', ' ').title()}!\nSolve the challenge to complete analysis."
+        else:
+            return "❌ Failed to start puzzle mode. Check if tool supports puzzles."
+    
+    def cmd_advance(self, args: list) -> str:
+        """Advance analysis stage or puzzle progress"""
+        if not self.game_state or not hasattr(self.game_state, 'aethertap') or not self.game_state.aethertap:
+            return "❌ AetherTap interface not available."
+        
+        panes = self.game_state.aethertap.get_panes()
+        decoder_pane = panes.get('decoder')
+        
+        if not decoder_pane:
+            return "❌ Decoder pane not available."
+        
+        if hasattr(decoder_pane, 'puzzle_mode') and decoder_pane.puzzle_mode:
+            return "🎯 Puzzle is active. Submit your answer to continue."
+        elif decoder_pane.current_tool:
+            decoder_pane.advance_analysis()
+            return f"⚡ Analysis stage advanced for {decoder_pane.current_tool.replace('_', ' ').title()}."
+        else:
+            return "❌ No active analysis to advance. Use ANALYZE <tool> first."
+    
+    def cmd_reset(self, args: list) -> str:
+        """Reset current analysis or puzzle"""
+        if not self.game_state or not hasattr(self.game_state, 'aethertap') or not self.game_state.aethertap:
+            return "❌ AetherTap interface not available."
+        
+        panes = self.game_state.aethertap.get_panes()
+        decoder_pane = panes.get('decoder')
+        
+        if not decoder_pane:
+            return "❌ Decoder pane not available."
+        
+        if hasattr(decoder_pane, 'reset_analysis'):
+            decoder_pane.reset_analysis()
+            return "🔄 Analysis reset. Ready for new tool selection."
+        else:
+            return "❌ Reset functionality not available."
+    
+    def cmd_tools(self, args: list) -> str:
+        """Show available analysis tools"""
+        if not self.game_state or not hasattr(self.game_state, 'aethertap') or not self.game_state.aethertap:
+            return "❌ AetherTap interface not available."
+        
+        panes = self.game_state.aethertap.get_panes()
+        decoder_pane = panes.get('decoder')
+        
+        if not decoder_pane:
+            return "❌ Decoder pane not available."
+        
+        if hasattr(decoder_pane, 'analysis_tools'):
+            tools = decoder_pane.analysis_tools
+            result = "🛠️ AVAILABLE ANALYSIS TOOLS:\n\n"
+            
+            for tool_id, tool_data in tools.items():
+                icon = tool_data['icon']
+                name = tool_data['name']
+                desc = tool_data['description']
+                complexity = tool_data['complexity']
+                
+                result += f"{icon} {name}\n"
+                result += f"   {desc}\n"
+                result += f"   Complexity: {complexity}/5 | Command: ANALYZE {tool_id}\n\n"
+            
+            result += "💡 Use 'ANALYZE <tool_name>' to select and start analysis."
+            return result
+        else:
+            return "❌ Tool information not available."
+    
+    def cmd_answer(self, args: list) -> str:
+        """Submit answer to current puzzle"""
+        if not args:
+            return "❌ Answer required. Usage: ANSWER <your_answer>"
+        
+        if not self.game_state or not hasattr(self.game_state, 'aethertap') or not self.game_state.aethertap:
+            return "❌ AetherTap interface not available."
+        
+        panes = self.game_state.aethertap.get_panes()
+        decoder_pane = panes.get('decoder')
+        
+        if not decoder_pane or not hasattr(decoder_pane, 'submit_puzzle_answer'):
+            return "❌ Puzzle system not available."
+        
+        if not hasattr(decoder_pane, 'puzzle_mode') or not decoder_pane.puzzle_mode:
+            return "❌ No active puzzle. Start puzzle mode first with PUZZLE command."
+        
+        answer = ' '.join(args)
+        success = decoder_pane.submit_puzzle_answer(answer)
+        
+        if success:
+            return f"✅ Correct! Puzzle solved with answer: {answer}"
+        else:
+            return f"❌ Incorrect answer: {answer}. Try again or use HINT for help."
+    
+    def cmd_hint(self, args: list) -> str:
+        """Get hint for current puzzle"""
+        if not self.game_state or not hasattr(self.game_state, 'aethertap') or not self.game_state.aethertap:
+            return "❌ AetherTap interface not available."
+        
+        panes = self.game_state.aethertap.get_panes()
+        decoder_pane = panes.get('decoder')
+        
+        if not decoder_pane or not hasattr(decoder_pane, 'get_puzzle_hint'):
+            return "❌ Puzzle system not available."
+        
+        if not hasattr(decoder_pane, 'puzzle_mode') or not decoder_pane.puzzle_mode:
+            return "❌ No active puzzle. Start puzzle mode first with PUZZLE command."
+        
+        hint = decoder_pane.get_puzzle_hint()
+        
+        if hint:
+            return f"💡 Hint: {hint.text}"
+        else:
+            return "❌ No hints available for this puzzle." 
