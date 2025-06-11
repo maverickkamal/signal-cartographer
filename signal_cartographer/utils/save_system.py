@@ -34,7 +34,7 @@ class SaveSystem:
     def create_save_data(self, game_state) -> Dict[str, Any]:
         """Create a dictionary containing all saveable game data"""
         save_data = {
-            "version": "1.0.0",
+            "version": "1.0.1",
             "timestamp": datetime.datetime.now().isoformat(),
             
             # Core game state

@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "signal-cartographer"
-version = "1.0.0"
+version = "1.0.1"
 authors = [
-    {name = "Signal Cartographer Team"},
+    {name = "Maverick"},
 ]
 description = "A sci-fi terminal-based signal analysis game with beautiful TUI interface"
 readme = "README.md"
@@ -42,10 +42,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/signal-cartographer"
-Repository = "https://github.com/yourusername/signal-cartographer.git"
-Documentation = "https://github.com/yourusername/signal-cartographer#readme"
-"Bug Tracker" = "https://github.com/yourusername/signal-cartographer/issues"
+Homepage = "https://github.com/maverickkamal/signal-cartographer"
+Repository = "https://github.com/maverickkamal/signal-cartographer.git"
+Documentation = "https://github.com/maverickkamal/signal-cartographer#readme"
+"Bug Tracker" = "https://github.com/maverickkamal/signal-cartographer/issues"
 
 [project.scripts]
 signal-cartographer = "signal_cartographer.main:main"

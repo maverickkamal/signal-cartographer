@@ -20,5 +20,5 @@ __all__ = [
     'DifficultyScaler'
 ]
 
-__version__ = "1.0.0"
-__author__ = "The Signal Cartographer Team"
+__version__ = "1.0.1"
+__author__ = "Maverick"

@@ -8,8 +8,8 @@ progressive difficulty across 5 sectors, 9 signal types, equipment upgrades,
 and an achievement system.
 """
 
-__version__ = "1.0.0"
-__author__ = "Signal Cartographer Team"
+__version__ = "1.0.1"
+__author__ = "Maverick"
 __description__ = "A sci-fi terminal-based signal analysis game with beautiful TUI interface"
 
 # Import main components for easy access
