@@ -64,7 +64,7 @@ You are a Signal Cartographer exploring space sectors to detect and analyze myst
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/signal-cartographer.git
+   git clone https://github.com/maverickkamal/signal-cartographer.git
    cd signal-cartographer
    ```
 
