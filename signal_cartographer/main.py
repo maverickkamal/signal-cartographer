@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 The Signal Cartographer: Echoes from the Void
-Entry point for the game
+Main entry point for the game package
 """
 
 import sys
@@ -18,7 +18,8 @@ def main():
         print("Press Ctrl+C to exit at any time.")
         print()
         
-        from signal_cartographer.game_core import SignalCartographer
+        # Import game core from the package
+        from .game_core import SignalCartographer
         
         game = SignalCartographer()
         game.run()
@@ -37,4 +38,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    main() 

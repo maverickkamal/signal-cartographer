@@ -151,6 +151,8 @@ Thumbs.db
 *.svg
 test_*.py
 *_test.py
+debug_keys.py
+fix_input.py
 *_fixes.py
 ms-vscode.powershell-*.vsix
 
