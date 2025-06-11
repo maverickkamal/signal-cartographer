@@ -9,7 +9,7 @@ from typing import Optional
 
 from .aethertap_textual import AetherTapTextual
 from .signal_system import SignalDetector
-from .command_parser import CommandParser
+from .command_parser_enhanced import EnhancedCommandParser
 from .progression_system import ProgressionSystem
 
 
@@ -22,7 +22,7 @@ class SignalCartographer:
     def __init__(self):
         # Initialize core systems
         self.signal_detector = SignalDetector()
-        self.command_parser = CommandParser()
+        self.command_parser = EnhancedCommandParser()
         self.aethertap = None
         self.running = False
         
