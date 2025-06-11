@@ -36,6 +36,27 @@ except ImportError:
         return 0
     error_handler = None
 
+# Phase 11: Import puzzle system components
+try:
+    from ..puzzles import PuzzleManager, PuzzleDifficulty
+    from ..puzzles.visual_patterns import (
+        ConstellationPuzzle, PatternFragmentPuzzle, SymbolRecognitionPuzzle,
+        NoiseFilterPuzzle, PatternMatcher
+    )
+    from ..puzzles.cryptographic import (
+        CaesarCipherPuzzle, VigenereCipherPuzzle, SubstitutionPuzzle,
+        FrequencyAnalyzer
+    )
+    from ..puzzles.logic_puzzles import (
+        MastermindPuzzle, CircuitCompletionPuzzle, SequenceDeductionPuzzle
+    )
+    from ..puzzles.audio_patterns import (
+        MorseCodePuzzle, RhythmPatternPuzzle, PulseSequencePuzzle
+    )
+    PUZZLE_SYSTEM_AVAILABLE = True
+except ImportError:
+    PUZZLE_SYSTEM_AVAILABLE = False
+
 class BasePane(ScrollableContainer):
     """Base class for all AetherTap panes - now scrollable"""
     
@@ -1057,7 +1078,7 @@ class CartographyPane(BasePane):
         return tracking_lines
 
 class DecoderPane(BasePane):
-    """Enhanced Decoder & Analysis Toolkit pane [DAT] - Phase 10.4"""
+    """Enhanced Decoder & Analysis Toolkit pane [DAT] - Phase 10.4 with Phase 11 Puzzle Integration"""
     
     def __init__(self, **kwargs):
         super().__init__("Decoder & Analysis Toolkit [DAT]", **kwargs)
@@ -1070,6 +1091,17 @@ class DecoderPane(BasePane):
         self.workspace_data = ""
         self.analysis_history = []
         self.validation_status = "pending"
+        
+        # Phase 11: Initialize puzzle system integration
+        try:
+            from ..puzzles import PuzzleManager, PuzzleDifficulty
+            self.puzzle_manager = PuzzleManager()
+            self.current_puzzle = None
+            self.puzzle_mode = False
+            self.puzzle_available = True
+        except ImportError:
+            self.puzzle_available = False
+            self.puzzle_manager = None
         
         # Define the 6 specialized analysis tools
         self.analysis_tools = {
@@ -1526,6 +1558,118 @@ class DecoderPane(BasePane):
             'current_stage': self.analysis_stage,
             'validation_status': self.validation_status
         }
+    
+    # Phase 11: Puzzle System Integration Methods
+    def start_puzzle_mode(self):
+        """Start interactive puzzle mode for current tool"""
+        if not self.puzzle_available or not self.current_tool:
+            return False
+        
+        try:
+            puzzle = self._create_puzzle_for_tool(self.current_tool)
+            if puzzle:
+                self.current_puzzle = puzzle
+                self.puzzle_mode = True
+                puzzle.start_puzzle()
+                self._display_tool_interface()
+                return True
+        except Exception as e:
+            self.workspace_data = f"❌ Puzzle initialization failed: {str(e)}"
+            self._display_tool_interface()
+        
+        return False
+    
+    def _create_puzzle_for_tool(self, tool_name: str):
+        """Create appropriate puzzle for the selected tool"""
+        if not self.puzzle_available:
+            return None
+        
+        try:
+            # Determine difficulty based on signal complexity
+            difficulty = self._get_puzzle_difficulty()
+            
+            if tool_name == 'pattern_recognition':
+                from ..puzzles.visual_patterns import ConstellationPuzzle
+                return ConstellationPuzzle(difficulty)
+            elif tool_name == 'cryptographic':
+                from ..puzzles.cryptographic import CaesarCipherPuzzle
+                return CaesarCipherPuzzle(difficulty)
+            elif tool_name == 'spectral':
+                from ..puzzles.audio_patterns import MorseCodePuzzle
+                return MorseCodePuzzle(difficulty)
+            elif tool_name == 'ascii_manipulation':
+                from ..puzzles.visual_patterns import SymbolRecognitionPuzzle
+                return SymbolRecognitionPuzzle(difficulty)
+            elif tool_name == 'constellation_mapping':
+                from ..puzzles.visual_patterns import PatternFragmentPuzzle
+                return PatternFragmentPuzzle(difficulty)
+            elif tool_name == 'temporal_sequencing':
+                from ..puzzles.logic_puzzles import SequenceDeductionPuzzle
+                return SequenceDeductionPuzzle(difficulty)
+        except ImportError:
+            pass
+        
+        return None
+    
+    def _get_puzzle_difficulty(self):
+        """Determine puzzle difficulty based on signal properties"""
+        if not self.analysis_data:
+            from ..puzzles import PuzzleDifficulty
+            return PuzzleDifficulty.EASY
+        
+        try:
+            from ..puzzles import PuzzleDifficulty
+            strength = getattr(self.analysis_data, 'strength', 0.5)
+            complexity = getattr(self.analysis_data, 'complexity', 3)
+            
+            if complexity >= 7:
+                return PuzzleDifficulty.NIGHTMARE
+            elif complexity >= 5:
+                return PuzzleDifficulty.HARD
+            elif complexity >= 3:
+                return PuzzleDifficulty.NORMAL
+            else:
+                return PuzzleDifficulty.EASY
+        except ImportError:
+            return None
+    
+    def submit_puzzle_answer(self, answer: str):
+        """Submit answer to current puzzle"""
+        if not self.puzzle_mode or not self.current_puzzle:
+            return False
+        
+        try:
+            result = self.current_puzzle.submit_answer(answer)
+            if result.is_correct:
+                self.workspace_data = f"✅ Puzzle solved! Score: {result.score}"
+                self.puzzle_mode = False
+                self.validation_status = "puzzle_completed"
+            else:
+                self.workspace_data = f"❌ Incorrect. {result.feedback}"
+            
+            self._display_tool_interface()
+            return result.is_correct
+        except Exception as e:
+            self.workspace_data = f"❌ Answer submission failed: {str(e)}"
+            self._display_tool_interface()
+            return False
+    
+    def get_puzzle_hint(self):
+        """Get hint for current puzzle"""
+        if not self.puzzle_mode or not self.current_puzzle:
+            return None
+        
+        try:
+            hint = self.current_puzzle.get_hint()
+            if hint:
+                self.workspace_data = f"💡 Hint: {hint.text}"
+                self._display_tool_interface()
+                return hint
+        except Exception as e:
+            self.workspace_data = f"❌ Hint unavailable: {str(e)}"
+            self._display_tool_interface()
+        
+        return None
 
 class LogPane(ScrollableContainer):
     """Enhanced Captain's Log & Database pane [CLD] - Phase 10.5"""
@@ -2148,12 +2292,18 @@ class LogPane(ScrollableContainer):
         # Format timestamp
         timestamp = time.strftime("%H:%M:%S", time.localtime(entry['timestamp']))
         
+        # Simple manual escaping for problematic characters
+        def safe_escape(text):
+            return text.replace('[', '\\[').replace(']', '\\]')
+        
+        safe_title = safe_escape(entry['title'])
+        
         # Title line with category icon and timestamp
-        title_line = f"{cat_info['icon']} [{cat_info['color']}]{entry['title']}[/{cat_info['color']}] [dim]({timestamp})[/dim]"
+        title_line = f"{cat_info['icon']} [{cat_info['color']}]{safe_title}[/{cat_info['color']}] [dim]({timestamp})[/dim]"
         lines.append(title_line)
         
-        # Content preview (first 100 chars)
-        content_preview = entry['content'][:100]
+        # Content preview (first 100 chars) - escape markup
+        content_preview = safe_escape(entry['content'][:100])
         if len(entry['content']) > 100:
             content_preview += "..."
         lines.append(f"   {content_preview}")
