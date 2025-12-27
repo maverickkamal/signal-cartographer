@@ -6,6 +6,9 @@ A sci-fi signal analysis game built with Python and Textual TUI. Explore the voi
 
 You are a Signal Cartographer exploring space sectors to detect and analyze mysterious signals from unknown sources. Use advanced tools to scan different sectors, focus on interesting signals, and analyze them to reveal hidden information. Progress through increasingly challenging sectors while upgrading your equipment and unlocking achievements.
 
+<img width="1057" height="699" alt="Screenshot 2025-06-02 213735" src="https://github.com/user-attachments/assets/3bc6fa9d-a343-4dc5-935a-898990a25f5b" />
+
+
 ## ✨ Complete Feature Set
 
 ### 🖥️ Interface & User Experience
